@@ -2,14 +2,14 @@
 clear all
 S = field();
 %close all
-S.runTime = 1;
+S.runTime = 15;
 if matlabpool('size') == 0 % checking to see if my pool is already open
     matlabpool open 2 % can do more on computer with more cores
 end
 
 % call control law for robot motion
 control_law = @(t,x) S.control_law(t,x);
-noise = [0.00 0.00 0 0.00];
+noise = [0.003 0.003 0 0.001];
 init = [sqrt(3)/20 -.05 0 0; -sqrt(3)/20 -.05 0 pi/3; 0 .1 0 5*pi/3];% -sqrt(3)/20 .05 0 0; sqrt(3)/20 .05 0 pi/3; 0 -.1 0 5*pi/3];
 % calls new Miabot object that actuates robot motion
 m = Miabots(init, control_law, 'velocity', S.runTime,...
@@ -93,11 +93,11 @@ xlabel('time');
 ylabel('Y-Position');
 
 w = m.get_history(1,'commands');
+d = m.get_history(1,'state_times');
 figure
-plot(m.get_history(1,'state_times'), w(:,2));
+plot(d(2:length(d)), w(:,2));
 xlabel('time');
-ylabel('aungular');
-
+ylabel('angular');
 
 
 

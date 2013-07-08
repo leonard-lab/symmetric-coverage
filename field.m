@@ -3,9 +3,9 @@ classdef field < handle
     
     properties
         sigma = .2;   % time constant for spatial separation of measurements
-        tau = .08;     % time constant for temporal separation of measurements
+        tau = .06;     % time constant for temporal separation of measurements
         mu = .1;       % uncertainty in measurements, a characteristic of the sensors
-        gamma = .04;   % radius over which a gradient is determined for motion
+        gamma = .06;   % radius over which a gradient is determined for motion
         meas = sensor.empty(15,0);  % array of sensor object, which contains all relevant past measurements
         sensors = sensor.empty(4,0);% array of sensors as they exist at this instant in time
         runTime;       % how many seconds the Miabots will run for
@@ -52,6 +52,7 @@ classdef field < handle
             %obj.meas = obj.e.measure(obj.meas);
             %obj.meas = obj.f.measure(obj.meas);
             %obj.meas = obj.d.measure(obj.meas);
+            obj.sensors = [obj.a; obj.b; obj.c];% obj.d; obj.e; obj.f];
         end
         
         function [ commands ] = control_law(obj, t, states)
@@ -61,8 +62,6 @@ classdef field < handle
             
             obj.t = t;
             
-            obj.sensors = [obj.a; obj.b; obj.c];% obj.d; obj.e; obj.f];
-
             r = mod(obj.q,3);
             rot1 = [cos(4*pi/3) sin(4*pi/3); -sin(4*pi/3) cos(4*pi/3)];
             rot2 = [cos(2*pi/3) sin(2*pi/3); -sin(2*pi/3) cos(2*pi/3)];
@@ -102,13 +101,6 @@ classdef field < handle
                 theta = states(i,6);
                 theta_dot = states(i,7);
                 
-                %if isnan(states(i,1)) == 1
-                %    y = 1;
-                %end
-                
-                
-                
-                
                 xgoal = F(i,1);
                 ygoal = F(i,2);
                 
@@ -138,7 +130,11 @@ classdef field < handle
                 commands(i,1) = u_x;
                 commands(i,2) = u_theta;
                 
-                
+                %comment to go based on ideal position
+               obj.sensors(i).x = states(i,1);
+               obj.sensors(i).y = states(i,2);
+               obj.sensors(i).z = states(i,3);
+               obj.sensors(i).t = t;
                 
             end
             %commands
@@ -150,42 +146,19 @@ classdef field < handle
             %obj.meas = obj.b.goToCentroid(obj.meas, F(2,:));
             %obj.meas = obj.c.goToCentroid(obj.meas, F(3,:));
             
-            %comment to go based on ideal position
-            obj.a.x = states(1,1);
-            obj.b.x = states(2,1);
-            obj.c.x = states(3,1);
-            %obj.d.x = states(4,1);
-            %obj.e.x = states(5,1);
-            %obj.f.x = states(6,1);
-           % obj.d.x = states(4,1);
-            obj.a.y = states(1,2);
-            obj.b.y = states(2,2);
-            obj.c.y = states(3,2);
-            %obj.d.y = states(4,2);
-            %obj.e.y = states(5,2);
-            %obj.f.y = states(6,2);
-            %obj.d.y = states(4,2);
-            obj.a.t = t;
-            obj.b.t = t;
-            obj.c.t = t;
-            %obj.d.t = t;
-            %obj.e.t = t;
-            %obj.f.t = t;
-            %obj.d.t = t;
             
-            obj.meas = obj.a.measure(obj.meas);
-            obj.meas = obj.b.measure(obj.meas);
-            obj.meas = obj.c.measure(obj.meas);
-            %obj.meas = obj.d.measure(obj.meas);
-            %obj.meas = obj.e.measure(obj.meas);
-            %obj.meas = obj.f.measure(obj.meas);
-            %obj.meas = obj.d.measure(obj.meas);
+            for i=1:obj.n_robots
+            obj.meas = obj.sensors(i).measure(obj.meas);
+            end
+
             
         end
         
         function [] = remove(obj)
+            % removes measurements from the meas array when they are no
+            % longer relevant
             
-            tMin = obj.t - ( obj.tau);
+            tMin = obj.t - (obj.tau);
             for i=1:length(obj.meas)
                 if (obj.meas(1).t) <= tMin
                     obj.meas = obj.meas(2:length(obj.meas));
@@ -195,6 +168,8 @@ classdef field < handle
         end
         
         function [ D ] = fieldGen(obj)
+            % generates the covariance between two measurement points, and
+            % returns a matrix of it
             C = zeros(length(obj.meas), length(obj.meas));
             for i=1:length(obj.meas)
                 for j=1:length(obj.meas)
@@ -209,11 +184,13 @@ classdef field < handle
                     
                 end
             end
-            C = C + obj.mu * eye(length(obj.meas));
-            D = C;
+            D = C + obj.mu * eye(length(obj.meas));
         end
         
         function [ centroids ] = centroid( obj )
+            % finds the centroid of each voronoi region surrounding a
+            % sensor weighted by uncertainty
+            
             obj.D = inv(obj.fieldGen);
             densitySums = zeros(11,length(obj.sensors));
             sumsx = zeros(11, length(obj.sensors));
@@ -298,10 +275,12 @@ classdef field < handle
         end
         
         function [ A ] = errorField(obj, x, y, z)
-            
+            % generates the uncertainty at a point in space at the current
+            % time, used by the voronoi control law
             M = 0;
             
-            %conditions for outside sample area
+            % conditions for outside sample area, currently set to an
+            % equilateral triangle
             if x > sqrt(3)/2 || x < -sqrt(3)/2 || y > (-sqrt(3)*x + 1) || y > (sqrt(3)*x + 1) || y < -.5
             %if x > 1 || x < -1 || y > 1 || y < -1
                 A = 0;
@@ -352,6 +331,8 @@ classdef field < handle
         end
         
         function [ commands ] = voronoi_control_law(obj, t, states)
+            % control law for the voronoi based control law, which is the
+            % standard to which the gradient control law is compared
             
             
             obj.t = t;
@@ -448,21 +429,48 @@ classdef field < handle
         end
         
         function [ F ] = bestDirection(obj, sensor1, theta)
+            % used in the gradient control law, determines what direction
+            % the robot should move in
             b = Inf;
             F = [0,0];
-            
             C = zeros(length(obj.meas) + 1, length(obj.meas) + 1);
             C(1:length(obj.meas),1:length(obj.meas)) = obj.fieldGen;
             angle=(theta+pi/3):pi/3:(2*pi+theta);
-            for e=1:length(angle)
+            Ftemp = zeros(length(angle), 2);
+            btemp = zeros(length(angle), 1);
+            parfor e=1:length(angle)
                 i = obj.gamma * cos(angle(e));
                 j = obj.gamma * sin(angle(e));
-                [F,b] = locationTest(obj, sensor1, i, j, theta, b, F, C);
+                [Ftemp(e, :),btemp(e)] = locationTest(obj, sensor1, i, j, theta, b, F, C);
+            end
+            
+            for e=1:length(angle)
+                if btemp(e) < b
+                    b = btemp(e);
+                    F = Ftemp(e,:);
+                elseif btemp(e) == b
+                    if Ftemp(e,1) == 0
+                        theta1 = wrapTo2Pi(pi/2 - theta);
+                    else
+                        theta1 = wrapTo2Pi(atan2(Ftemp(e,2),Ftemp(e,1)) - theta);
+                    end
+                    
+                    if (F(1)-sensor1.x) == 0
+                        theta2 = wrapTo2Pi(pi/2 - theta);
+                    else
+                        theta2 = wrapTo2Pi(atan2(F(2)-sensor1.y,F(1)-sensor1.x) - theta);
+                    end
+                    if theta1 < theta2
+                        F = Ftemp(e);
+                    end
+                end
             end
             
         end
         
         function [ A ] = timeErrorField(obj, x, y, t)
+            % generates the uncertainty at a given place in space and time,
+            % used in the gradient control law
             
             A = zeros(1,length(x));
 
@@ -477,12 +485,12 @@ classdef field < handle
                 for i=1:length(obj.meas)
                     if abs(((obj.meas(i).x).^2 ...
                             + (obj.meas(i).y)^2).^.5 - (x(h).^2 + y(h).^2).^.5) ...
-                            < 2* obj.sigma
+                            < obj.sigma
                         for j=1:length(obj.meas)
                             if abs(((obj.meas(j).x).^2 ...
                                     + (obj.meas(j).y).^2).^.5 ...
                                     - (x(h).^2 + y(h).^2).^.5) < ...
-                                    2 * obj.sigma
+                                    obj.sigma
                                 M = M + (exp(-abs(((sqrt((x(h) ...
                                     - obj.meas(i).x).^2 + (y(h) ...
                                     - obj.meas(i).y).^2) ...
@@ -509,7 +517,9 @@ classdef field < handle
             
         end
         
-        function [] = start(obj, runtime, theta)
+        function [] = start(obj, runtime, theta) 
+            % testing client used to compare results to an ideal without
+            % the constraints of robot motion
             obj.t = 0;
             A = zeros(floor(runtime/.04),2);
             B = zeros(floor(runtime/.04),2);
@@ -555,21 +565,19 @@ classdef field < handle
         end
         
         function [ k ] = lineSum(obj, sensor1, temp, C, theta)
+            % finds the sum of the uncertainty field over the region of
+            % gamma close points to the gradient field
             k = 0;
             
             obj.D = inv(obj.finishField(C));
             
             angle = (theta+pi/3):pi/3:(2*pi+theta);
-            %for d=1:length(angle)
                 v = obj.gamma * cos(angle);
                 w = obj.gamma * sin(angle);
                 
                
                 h = obj.timeErrorField(sensor1.x + v,sensor1.y + w, temp.t);
                 k = k + sum(h);
-                
-                
-            %end
             
             
         end
@@ -582,29 +590,8 @@ classdef field < handle
             
             obj.meas = [obj.meas; temp];
             
-            k = obj.lineSum(sensor1, temp, C, theta);
-            
-            if k < b
-                F = [temp.x,temp.y];
-                b = k;
-                
-            elseif k == b
-                if i == 0
-                    theta1 = wrapTo2Pi(pi/2 - theta);
-                else
-                    theta1 = wrapTo2Pi(atan2(j,i) - theta);
-                end
-                if (F(1)-sensor1.x) == 0
-                    theta2 = (pi/2 - theta);
-                else
-                    theta2 = wrapTo2Pi(atan2(F(2)-sensor1.y,F(1)-sensor1.x) - theta);
-                end
-                if theta1 < theta2
-                    F = [temp.x,temp.y];
-                end
-                
-            end
-            
+            b = obj.lineSum(sensor1, temp, C, theta);
+            F = [temp.x,temp.y];
             
             obj.meas = obj.meas(1:(length(obj.meas)-1));
             
