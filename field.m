@@ -2,28 +2,24 @@ classdef field < handle
     %Class to run voronoi and gradient based symmetric searchs
     
     properties
-        sigma = .2;   % time constant for spatial separation of measurements
-        tau = .06;     % time constant for temporal separation of measurements
+        sigma = .14;   % time constant for spatial separation of measurements
+        tau = .08;     % time constant for temporal separation of measurements
         mu = .1;       % uncertainty in measurements, a characteristic of the sensors
-        gamma = .06;   % radius over which a gradient is determined for motion
+        gamma = .04;   % radius over which a gradient is determined for motion
         meas = sensor.empty(15,0);  % array of sensor object, which contains all relevant past measurements
+        measurements = zeros(0,4);
         sensors = sensor.empty(4,0);% array of sensors as they exist at this instant in time
         runTime;       % how many seconds the Miabots will run for
         n_robots = 3;  % number of robots
-        k1 = 4;     % coefficient for forward velocity in control law 
-        k2 = 4;     % coefficient for angular velocity in control law 
+        k1 = 2;     % coefficient for forward velocity in control law
+        k2 = 20;     % coefficient for angular velocity in control law
         k3 = 0;        % coefficient for forward velocity in integral control law
         k4 = 0;
         t;             % current time
-        D;             % matrix of sensor covariance used in calculating the uncertainty at a location
         
-        % sensors used for the gradient control law
-        a = sensor.empty(0,0);
-        b = sensor.empty(0,0);
-        c = sensor.empty(0,0);
-        %d = sensor.empty(0,0);
-        %e = sensor.empty(0,0);
-        %f = sensor.empty(0,0);
+        
+        
+      
         q = 0;
         
         
@@ -35,9 +31,9 @@ classdef field < handle
             % generates a new field object
             
             % initialize sensors
-            obj.a = sensor(sqrt(3)/20, -.05, 0, 0);
-            obj.b = sensor(-sqrt(3)/20, -.05, 0, 0);
-            obj.c = sensor(0, .1, 0, 0);
+            robot1 = sensor(sqrt(3)/20, -.05, 0, 0);
+            robot2 = sensor(-sqrt(3)/20, -.05, 0, 0);
+            robot3 = sensor(0, .1, 0, 0);
             %obj.d = sensor(-sqrt(3)/20, .05, 0, 0);
             %obj.e = sensor(sqrt(3)/20, .05, 0, 0);
             %obj.f = sensor(0, -.1, 0, 0);
@@ -45,48 +41,50 @@ classdef field < handle
             %obj.b = sensor(0, -.2,0);
             
             % take initial sensor measurements
-            obj.meas = obj.a.measure(obj.meas);
-            obj.meas = obj.b.measure(obj.meas);
-            obj.meas = obj.c.measure(obj.meas);
+            %obj.meas = robot1.measure(obj.meas);
+            %obj.meas = robot2.measure(obj.meas);
+            %obj.meas = robot3.measure(obj.meas);
             %obj.meas = obj.d.measure(obj.meas);
             %obj.meas = obj.e.measure(obj.meas);
             %obj.meas = obj.f.measure(obj.meas);
             %obj.meas = obj.d.measure(obj.meas);
-            obj.sensors = [obj.a; obj.b; obj.c];% obj.d; obj.e; obj.f];
+            obj.sensors = [robot1; robot2; robot3];% obj.d; obj.e; obj.f];
         end
         
         function [ commands ] = control_law(obj, t, states)
             % gradient control law which views gamma-close spots to a
             % sensor and directs a Miabot to the best location
-            
-            
-            obj.t = t;
+             obj.t = t;
+             for i=1:obj.n_robots
+
+                 [obj.meas, obj.measurements] = obj.sensors(i).measure(obj.meas, obj.measurements);
+             end
+             
             
             r = mod(obj.q,3);
             rot1 = [cos(4*pi/3) sin(4*pi/3); -sin(4*pi/3) cos(4*pi/3)];
             rot2 = [cos(2*pi/3) sin(2*pi/3); -sin(2*pi/3) cos(2*pi/3)];
             if r == 0
-            G = obj.bestDirection(obj.sensors(1), states(1,6));
-            %H = obj.bestDirection(obj.sensors(4), states(4,6));
-            %G2 = obj.bestDirection(obj.sensors(2), states(2,6));
-            %G3 = obj.bestDirection(obj.sensors(3), states(3,6));
-            %G = (G1 + G2*rot2 + G3*rot1)./3;
-            F = [G; G*rot1; G*rot2];% H; H*rot1; H*rot2];
+                GoalPoint = obj.bestDirection(obj.sensors(1), states(1,6));
+                %H = obj.bestDirection(obj.sensors(4), states(4,6));
+                F = [GoalPoint; GoalPoint*rot1; GoalPoint*rot2];% H; H*rot1; H*rot2];
             elseif r == 1
-                G = obj.bestDirection(obj.sensors(2), states(2,6));
+                GoalPoint = obj.bestDirection(obj.sensors(2), states(2,6));
                 %H = obj.bestDirection(obj.sensors(5), states(5,6));
-
-            F = [G*rot2; G; G*rot1]; %H*rot2; H; H*rot1];
+                
+                F = [GoalPoint*rot2; GoalPoint; GoalPoint*rot1]; %H*rot2; H; H*rot1];
             elseif r == 2
-                G = obj.bestDirection(obj.sensors(3), states(3,6));
-               % H = obj.bestDirection(obj.sensors(6), states(6,6));
-            F = [G*rot1; G*rot2; G];% H*rot1; H*rot2; H];
+                GoalPoint = obj.bestDirection(obj.sensors(3), states(3,6));
+                % H = obj.bestDirection(obj.sensors(6), states(6,6));
+                F = [GoalPoint*rot1; GoalPoint*rot2; GoalPoint];% H*rot1; H*rot2; H];
             end
-
+            
             
             
             commands = zeros(obj.n_robots,3);
-            %obj.q = obj.q + 1
+            obj.q = obj.q + 1
+            
+            % use the goal points to determine commands for u_x and u_theta
             for i=1:obj.n_robots
                 
                 %F = obj.bestDirection(obj.sensors(i), states(i,6));
@@ -129,12 +127,9 @@ classdef field < handle
                 % matrix
                 commands(i,1) = u_x;
                 commands(i,2) = u_theta;
-                
+              
                 %comment to go based on ideal position
-               obj.sensors(i).x = states(i,1);
-               obj.sensors(i).y = states(i,2);
-               obj.sensors(i).z = states(i,3);
-               obj.sensors(i).t = t;
+
                 
             end
             %commands
@@ -148,9 +143,12 @@ classdef field < handle
             
             
             for i=1:obj.n_robots
-            obj.meas = obj.sensors(i).measure(obj.meas);
+                 obj.sensors(i).x = states(i,1);
+                 obj.sensors(i).y = states(i,2);
+                 obj.sensors(i).z = states(i,3);
+                 obj.sensors(i).t = t;
             end
-
+            
             
         end
         
@@ -158,11 +156,17 @@ classdef field < handle
             % removes measurements from the meas array when they are no
             % longer relevant
             
-            tMin = obj.t - (obj.tau);
-            for i=1:length(obj.meas)
-                if (obj.meas(1).t) <= tMin
-                    obj.meas = obj.meas(2:length(obj.meas));
-                end
+            %tMin = obj.t - 2*(obj.tau);
+            %for i=1:length(obj.meas)
+            %    if (obj.meas(1).t) <= tMin
+            %        obj.meas = obj.meas(2:length(obj.meas));
+            %    end
+            %end
+            
+            measMax = 3 * obj.n_robots;
+            while length(obj.measurements(:,1)) > measMax
+                obj.meas = obj.meas(2:length(obj.meas));
+                obj.measurements = obj.measurements((2:length(obj.meas)),:);
             end
             
         end
@@ -173,14 +177,11 @@ classdef field < handle
             C = zeros(length(obj.meas), length(obj.meas));
             for i=1:length(obj.meas)
                 for j=1:length(obj.meas)
-
+                    
                     C(i,j) = exp(-abs(((sqrt((obj.meas(i).x - obj.meas(j).x)^2 ...
                         + (obj.meas(i).y - obj.meas(j).y)^2 + (obj.meas(i).z - obj.meas(j).z)^2)/ obj.sigma))) ...
                         - abs((obj.meas(i).t - obj.meas(j).t)/ obj.tau));
-                    B = isnan(C(i,:)); 
-                    if B(i) == 1
-                        u = 2;
-                    end
+
                     
                 end
             end
@@ -207,43 +208,43 @@ classdef field < handle
                 
                 for j=-1:.2:1
                     for z=-1:.2:1
-                    r = ((i - sensors(1).x)^2 + ...
-                        (j - sensors(1).y)^2 + ...
-                        (z - sensors(1).z)^2)^.5;
-                    m = 1;
-                    m1 = 0;
-                    n = 0;
-                    for k=2:length(sensors)
-                        rPrime = ((i - sensors(k).x)^2 + ...
-                            (j - sensors(k).y)^2 + (z - sensors(k).z)^2)^.5;
-                        if rPrime < r
-                            r = rPrime;
-                            m = k;
-                        elseif rPrime == r
-                            n = 1;
-                            m1 = k;
+                        r = ((i - sensors(1).x)^2 + ...
+                            (j - sensors(1).y)^2 + ...
+                            (z - sensors(1).z)^2)^.5;
+                        m = 1;
+                        m1 = 0;
+                        n = 0;
+                        for k=2:length(sensors)
+                            rPrime = ((i - sensors(k).x)^2 + ...
+                                (j - sensors(k).y)^2 + (z - sensors(k).z)^2)^.5;
+                            if rPrime < r
+                                r = rPrime;
+                                m = k;
+                            elseif rPrime == r
+                                n = 1;
+                                m1 = k;
+                            end
                         end
-                    end
-                    density = obj.errorField(i,j,z);
-                    
-                    if n == 0
-                        tempDensitySums(m) = tempDensitySums(m) + density;
-                        tempSumsx(m) = tempSumsx(m) + (i * density);
-                        tempSumsy(m) = tempSumsy(m) + (j * density);
-                        tempSumsz(m) = tempSumsz(m) + (z * density);
+                        density = obj.errorField(i,j,z);
                         
-                    elseif n==1
-                        tempDensitySums(m) = tempDensitySums(m) + density / 2;
-                        tempDensitySums(m1) = tempDensitySums(m1) + density / 2;
-                        tempSumsx(m) = tempSumsx(m) + (i/2 * density);
-                        tempSumsy(m) = tempSumsy(m) + (j/2 * density);
-                        tempSumsz(m) = tempSumsz(m) + (z/2 * density);
-                        tempSumsx(m1) = tempSumsx(m1) + (i/2 * density);
-                        tempSumsy(m1) = tempSumsy(m1) + (j/2 * density);
-                        tempSumsz(m1) = tempSumsz(m1) + (z/2 * density);
-                    end
-                    
-                    
+                        if n == 0
+                            tempDensitySums(m) = tempDensitySums(m) + density;
+                            tempSumsx(m) = tempSumsx(m) + (i * density);
+                            tempSumsy(m) = tempSumsy(m) + (j * density);
+                            tempSumsz(m) = tempSumsz(m) + (z * density);
+                            
+                        elseif n==1
+                            tempDensitySums(m) = tempDensitySums(m) + density / 2;
+                            tempDensitySums(m1) = tempDensitySums(m1) + density / 2;
+                            tempSumsx(m) = tempSumsx(m) + (i/2 * density);
+                            tempSumsy(m) = tempSumsy(m) + (j/2 * density);
+                            tempSumsz(m) = tempSumsz(m) + (z/2 * density);
+                            tempSumsx(m1) = tempSumsx(m1) + (i/2 * density);
+                            tempSumsy(m1) = tempSumsy(m1) + (j/2 * density);
+                            tempSumsz(m1) = tempSumsz(m1) + (z/2 * density);
+                        end
+                        
+                        
                     end
                 end
                 densitySums(u,:) = tempDensitySums;
@@ -282,7 +283,7 @@ classdef field < handle
             % conditions for outside sample area, currently set to an
             % equilateral triangle
             if x > sqrt(3)/2 || x < -sqrt(3)/2 || y > (-sqrt(3)*x + 1) || y > (sqrt(3)*x + 1) || y < -.5
-            %if x > 1 || x < -1 || y > 1 || y < -1
+                %if x > 1 || x < -1 || y > 1 || y < -1
                 A = 0;
             else
                 
@@ -434,25 +435,26 @@ classdef field < handle
             b = Inf;
             F = [0,0];
             C = zeros(length(obj.meas) + 1, length(obj.meas) + 1);
-            C(1:length(obj.meas),1:length(obj.meas)) = obj.fieldGen;
+            C(1:end-1,1:end-1) = obj.fieldGen;
             angle=(theta+pi/3):pi/3:(2*pi+theta);
             Ftemp = zeros(length(angle), 2);
             btemp = zeros(length(angle), 1);
-            parfor e=1:length(angle)
-                i = obj.gamma * cos(angle(e));
-                j = obj.gamma * sin(angle(e));
-                [Ftemp(e, :),btemp(e)] = locationTest(obj, sensor1, i, j, theta, b, F, C);
+            parfor index=1:length(angle)
+                i = obj.gamma * cos(angle(index));
+                j = obj.gamma * sin(angle(index));
+                [Ftemp(index, :),btemp(index)] = locationTest(obj, sensor1, i, j, theta, F, C);
             end
             
-            for e=1:length(angle)
-                if btemp(e) < b
-                    b = btemp(e);
-                    F = Ftemp(e,:);
-                elseif btemp(e) == b
-                    if Ftemp(e,1) == 0
+            for index=1:length(angle)
+                if btemp(index) < b
+                    b = btemp(index);
+                    F = Ftemp(index,:);
+                elseif btemp(index) == b
+                    'no'
+                    if Ftemp(index,1) == 0
                         theta1 = wrapTo2Pi(pi/2 - theta);
                     else
-                        theta1 = wrapTo2Pi(atan2(Ftemp(e,2),Ftemp(e,1)) - theta);
+                        theta1 = wrapTo2Pi(atan2(Ftemp(index,2),Ftemp(index,1)) - theta);
                     end
                     
                     if (F(1)-sensor1.x) == 0
@@ -461,63 +463,65 @@ classdef field < handle
                         theta2 = wrapTo2Pi(atan2(F(2)-sensor1.y,F(1)-sensor1.x) - theta);
                     end
                     if theta1 < theta2
-                        F = Ftemp(e);
+                        F = Ftemp(index,:);
+                        b = btemp(index);
+                        'yes'
                     end
                 end
             end
             
         end
         
-        function [ A ] = timeErrorField(obj, x, y, t)
+        function [ A ] = timeErrorField(obj, x, y, t, tempMeas, D)
             % generates the uncertainty at a given place in space and time,
             % used in the gradient control law
             
             A = zeros(1,length(x));
-
+            
             %conditions for outside sample area
             for h=1:length(x)
-                M = 0;
-                if (x(h) > sqrt(3)/2) | (x(h) < -sqrt(3)/2) | (y(h) > (-sqrt(3)*x(h) + 1)) | (y(h) > (sqrt(3)*x(h) + 1)) | (y(h) < -.5)
+                
+                if (x(h) > sqrt(3)/2) || (x(h) < -sqrt(3)/2) || (y(h) > (-sqrt(3)*x(h) + 1)) || (y(h) > (sqrt(3)*x(h) + 1)) || (y(h) < -.5)
                     %if (x(h)^2 + y(h)^2)^.5 > .75
                     A(h) = 1;
                 else
-                    
-                for i=1:length(obj.meas)
-                    if abs(((obj.meas(i).x).^2 ...
-                            + (obj.meas(i).y)^2).^.5 - (x(h).^2 + y(h).^2).^.5) ...
-                            < obj.sigma
-                        for j=1:length(obj.meas)
-                            if abs(((obj.meas(j).x).^2 ...
-                                    + (obj.meas(j).y).^2).^.5 ...
-                                    - (x(h).^2 + y(h).^2).^.5) < ...
-                                    obj.sigma
-                                M = M + (exp(-abs(((sqrt((x(h) ...
-                                    - obj.meas(i).x).^2 + (y(h) ...
-                                    - obj.meas(i).y).^2) ...
-                                    ./ obj.sigma)))...
-                                    - abs((t - obj.meas(i).t)...
-                                    ./ obj.tau)) .* obj.D(i,j) ...
-                                    .* exp(-abs(((sqrt((obj.meas(j).x...
-                                    - x(h)).^2 + (obj.meas(j).y - y(h)).^2)...
-                                    ./ obj.sigma))) ...
-                                    - abs(((obj.meas(j).t) - t)...
-                                    ./ obj.tau)));
+                    M = 0;
+                    for i=1:length(tempMeas)
+                        if abs(((tempMeas(i).x).^2 ...
+                                + (tempMeas(i).y)^2).^.5 - (x(h).^2 + y(h).^2).^.5) ...
+                                < obj.sigma
+                            for j=1:length(tempMeas)
+                                if abs(((tempMeas(j).x).^2 ...
+                                        + (tempMeas(j).y).^2).^.5 ...
+                                        - (x(h).^2 + y(h).^2).^.5) < ...
+                                        obj.sigma
+                                    M = M + (exp(-abs(((sqrt((x(h) ...
+                                        - tempMeas(i).x).^2 + (y(h) ...
+                                        - tempMeas(i).y).^2) ...
+                                        ./ obj.sigma)))...
+                                        - abs((t - tempMeas(i).t)...
+                                        ./ obj.tau)) .* D(i,j) ...
+                                        .* exp(-abs(((sqrt((tempMeas(j).x...
+                                        - x(h)).^2 + (tempMeas(j).y - y(h)).^2)...
+                                        ./ obj.sigma))) ...
+                                        - abs(((tempMeas(j).t) - t)...
+                                        ./ obj.tau)));
+                                    
+                                end
                                 
                             end
                             
                         end
-                        
                     end
+                    
+                    
+                    A(h) = 1 - M;
                 end
-                
-                
-                A(h) = 1 - M;
-            end
             end
             
         end
         
-        function [] = start(obj, runtime, theta) 
+        function [] = start(obj, runtime, theta)
             % testing client used to compare results to an ideal without
             % the constraints of robot motion
             obj.t = 0;
@@ -564,61 +568,57 @@ classdef field < handle
             plot(A(:,1), .04:.04:3);
         end
         
-        function [ k ] = lineSum(obj, sensor1, temp, C, theta)
+        function [ k ] = lineSum(obj, sensor1, temp, C, theta, tempMeas)
             % finds the sum of the uncertainty field over the region of
             % gamma close points to the gradient field
             k = 0;
             
-            obj.D = inv(obj.finishField(C));
+            D = inv(obj.finishField(C, tempMeas));
+       
             
             angle = (theta+pi/3):pi/3:(2*pi+theta);
-                v = obj.gamma * cos(angle);
-                w = obj.gamma * sin(angle);
-                
-               
-                h = obj.timeErrorField(sensor1.x + v,sensor1.y + w, temp.t);
-                k = k + sum(h);
+            v = obj.gamma * cos(angle);
+            w = obj.gamma * sin(angle);
+            
+            
+            h = obj.timeErrorField(sensor1.x + v,sensor1.y + w, temp.t, tempMeas, D);
+            k = k + sum(h);
             
             
         end
         
-        function [ F, b ] = locationTest(obj, sensor1, i, j, theta, b, F, C)
-            temp = sensor(0,0,0,0);
-            temp.x = sensor1.x + i;
-            temp.y = sensor1.y + j;
-            temp.t = obj.t;
+        function [ F, b ] = locationTest(obj, sensor1, i, j, theta, F, C)
+            temp = sensor(sensor1.x + i, sensor1.y + j, 0, obj.t);
             
-            obj.meas = [obj.meas; temp];
-            
-            b = obj.lineSum(sensor1, temp, C, theta);
+            tempMeas = [obj.meas; temp];
+                        
+            b = obj.lineSum(sensor1, temp, C, theta, tempMeas);
             F = [temp.x,temp.y];
             
-            obj.meas = obj.meas(1:(length(obj.meas)-1));
-            
+                       
             
         end
         
-        function [ D ] = finishField(obj, C)
+        function [ D ] = finishField(obj, C, tempMeas)
             
-            B = zeros(length(obj.meas), length(obj.meas));
-            i=length(obj.meas);
-            for j=1:length(obj.meas)
-                B(i,j) = exp(-abs(((sqrt((obj.meas(i).x - obj.meas(j).x)^2 ...
-                    + (obj.meas(i).y - obj.meas(j).y)^2)/ obj.sigma))) ...
-                    - abs((obj.meas(i).t - obj.meas(j).t)/ obj.tau));
+            B = zeros(length(tempMeas), length(tempMeas));
+            i=length(tempMeas);
+            for j=1:length(tempMeas)
+                B(i,j) = exp(-abs(((sqrt((tempMeas(i).x - tempMeas(j).x)^2 ...
+                    + (tempMeas(i).y - tempMeas(j).y)^2)/ obj.sigma))) ...
+                    - abs((tempMeas(i).t - tempMeas(j).t)/ obj.tau));
                 
             end
             
-            j=length(obj.meas);
-            for i=1:length(obj.meas)
-                B(i,j) = exp(-abs(((sqrt((obj.meas(i).x - obj.meas(j).x)^2 ...
-                    + (obj.meas(i).y - obj.meas(j).y)^2)/ obj.sigma))) ...
-                    - abs((obj.meas(i).t - obj.meas(j).t)/ obj.tau));
+            j=length(tempMeas);
+            for i=1:length(tempMeas)
+                B(i,j) = exp(-abs(((sqrt((tempMeas(i).x - tempMeas(j).x)^2 ...
+                    + (tempMeas(i).y - tempMeas(j).y)^2)/ obj.sigma))) ...
+                    - abs((tempMeas(i).t - tempMeas(j).t)/ obj.tau));
                 
             end
-            B(length(obj.meas),length(obj.meas)) = B(length(obj.meas),length(obj.meas)) + obj.mu;
-            C = C + B;
-            D = C;
+            B(end,end) = B(end,end) + obj.mu;
+            D = C + B;
         end
     end
     

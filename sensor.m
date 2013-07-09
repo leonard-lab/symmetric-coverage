@@ -49,11 +49,12 @@ classdef sensor < handle
 
         end
         
-        function [meas] = measure(obj, meas)
+        function [meas, measurements] = measure(obj, meas, measurements)
             % Takes a measurement at the given object's location in space
             % and time.
             temp = sensor(obj.x, obj.y, obj.z, obj.t);
             meas = [meas; temp];
+            measurements = [measurements; obj.x obj.y, obj.z, obj.t];
         end
                 
             
