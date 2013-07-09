@@ -11,11 +11,12 @@ classdef field < handle
         sensors = sensor.empty(4,0);% array of sensors as they exist at this instant in time
         runTime;       % how many seconds the Miabots will run for
         n_robots = 3;  % number of robots
-        k1 = 2;     % coefficient for forward velocity in control law
-        k2 = 20;     % coefficient for angular velocity in control law
+        k1 = 1;     % coefficient for forward velocity in control law
+        k2 = 2;     % coefficient for angular velocity in control law
         k3 = 0;        % coefficient for forward velocity in integral control law
         k4 = 0;
         t;             % current time
+        D;
         
         
         
@@ -82,7 +83,7 @@ classdef field < handle
             
             
             commands = zeros(obj.n_robots,3);
-            obj.q = obj.q + 1
+            obj.q = obj.q + 1;
             
             % use the goal points to determine commands for u_x and u_theta
             for i=1:obj.n_robots
@@ -137,10 +138,6 @@ classdef field < handle
             obj.remove();
             
             
-            %obj.meas = obj.a.goToCentroid(obj.meas, F(1,:));
-            %obj.meas = obj.b.goToCentroid(obj.meas, F(2,:));
-            %obj.meas = obj.c.goToCentroid(obj.meas, F(3,:));
-            
             
             for i=1:obj.n_robots
                  obj.sensors(i).x = states(i,1);
@@ -166,7 +163,7 @@ classdef field < handle
             measMax = 3 * obj.n_robots;
             while length(obj.measurements(:,1)) > measMax
                 obj.meas = obj.meas(2:length(obj.meas));
-                obj.measurements = obj.measurements((2:length(obj.meas)),:);
+                obj.measurements = obj.measurements((2:length(obj.measurements(:,1))),:);
             end
             
         end
@@ -174,18 +171,19 @@ classdef field < handle
         function [ D ] = fieldGen(obj)
             % generates the covariance between two measurement points, and
             % returns a matrix of it
-            C = zeros(length(obj.meas), length(obj.meas));
-            for i=1:length(obj.meas)
-                for j=1:length(obj.meas)
+            C = zeros(length(obj.measurements(:,1)), length(obj.measurements(:,1)));
+            for i=1:length(obj.measurements(:,1))
+                for j=1:length(obj.measurements(:,1))
                     
-                    C(i,j) = exp(-abs(((sqrt((obj.meas(i).x - obj.meas(j).x)^2 ...
-                        + (obj.meas(i).y - obj.meas(j).y)^2 + (obj.meas(i).z - obj.meas(j).z)^2)/ obj.sigma))) ...
-                        - abs((obj.meas(i).t - obj.meas(j).t)/ obj.tau));
+                    C(i,j) = exp(-abs(((sqrt((obj.measurements(i,1) - obj.measurements(j,1))^2 ...
+                        + (obj.measurements(i,2) - obj.measurements(j,2))^2 + (obj.measurements(i,3) - obj.measurements(j,3))^2)/ obj.sigma))) ...
+                        - abs((obj.measurements(i,4) - obj.measurements(j,4))/ obj.tau));
 
                     
                 end
             end
-            D = C + obj.mu * eye(length(obj.meas));
+            D = C + obj.mu * eye(length(obj.measurements(:,1)));
+
         end
         
         function [ centroids ] = centroid( obj )
@@ -287,27 +285,27 @@ classdef field < handle
                 A = 0;
             else
                 
-                for i=1:length(obj.meas)
-                    if obj.meas(i).t > obj.t - 2 * obj.tau
-                        if abs(((obj.meas(i).x).^2 ...
-                                + (obj.meas(i).y).^2 + (obj.meas(i).z).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
+                for i=1:length(obj.measurements(:,1))
+                    if obj.measurements(i,4) > obj.t - 2 * obj.tau
+                        if abs(((obj.measurements(i,1)).^2 ...
+                                + (obj.measurements(i,2)).^2 + (obj.measurements(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
                                 < 3 * obj.sigma
-                            for j=1:length(obj.meas)
-                                if obj.meas(j).t > obj.t - 2 * obj.tau
-                                    if abs(((obj.meas(j).x).^2 ...
-                                            + (obj.meas(j).y).^2 + (obj.meas(j).z).^2).^.5 ...
+                            for j=1:length(obj.measurements(:,1))
+                                if obj.measurements(j,4) > obj.t - 2 * obj.tau
+                                    if abs(((obj.measurements(j,1)).^2 ...
+                                            + (obj.measurements(j,2)).^2 + (obj.measurements(j,3)).^2).^.5 ...
                                             - (x.^2 + y.^2)^.5) < 3 ...
                                             * obj.sigma
                                         M = M + (exp(-abs(((sqrt((x ...
-                                            - obj.meas(i).x).^2 + (y ...
-                                            - obj.meas(i).y).^2 + (z - obj.meas(i).z).^2) ...
+                                            - obj.measurements(i,1)).^2 + (y ...
+                                            - obj.measurements(i,2)).^2 + (z - obj.measurements(i,3)).^2) ...
                                             ./ obj.sigma)))...
-                                            - abs((obj.t - obj.meas(i).t)...
+                                            - abs((obj.t - obj.measurements(i,4))...
                                             ./ obj.tau)) .* obj.D(i,j) ... % MAKE D(i,j,k)
-                                            .* exp(-abs(((sqrt((obj.meas(j).x...
-                                            - x).^2 + (obj.meas(j).y - y).^2 + (obj.meas(j).z - z).^2)...
+                                            .* exp(-abs(((sqrt((obj.measurements(j,1)...
+                                            - x).^2 + (obj.measurements(j,2) - y).^2 + (obj.measurements(j,3) - z).^2)...
                                             ./ obj.sigma))) ...
-                                            - abs(((obj.meas(j).t) - obj.t)...
+                                            - abs(((obj.measurements(j,4)) - obj.t)...
                                             ./ obj.tau)));
                                         
                                     else
@@ -337,8 +335,16 @@ classdef field < handle
             
             
             obj.t = t;
+            %comment to go based on ideal position
+            for i=1:obj.n_robots
+                obj.sensors(i).x = states(i,1);
+                obj.sensors(i).y = states(i,2);
+                obj.sensors(i).z = states(i,3);
+                obj.sensors(i).t = t;
+                [obj.meas, obj.measurements] = obj.sensors(i).measure(obj.meas, obj.measurements);
+            end
             
-            obj.sensors = [obj.a; obj.b; obj.c]; %obj.d; obj.e; obj.f];
+            
             C = obj.centroid();
             
             %uncomment to go based on ideal position
@@ -400,32 +406,7 @@ classdef field < handle
                 
             end
             obj.remove();
-            %comment to go based on ideal position
-            obj.a.x = states(1,1);
-            obj.b.x = states(2,1);
-            obj.c.x = states(3,1);
-            %obj.d.x = states(4,1);
-            %obj.e.x = states(5,1);
-            %obj.f.x = states(6,1);
-            obj.a.y = states(1,2);
-            obj.b.y = states(2,2);
-            obj.c.y = states(3,2);
-            %obj.d.y = states(4,2);
-            %obj.e.y = states(5,2);
-            %obj.f.y = states(6,2);
-            obj.a.t = t;
-            obj.b.t = t;
-            obj.c.t = t;
-            %obj.d.t = t;
-            %obj.e.t = t;
-            %obj.f.t = t;
-            
-            obj.meas = obj.a.measure(obj.meas);
-            obj.meas = obj.b.measure(obj.meas);
-            obj.meas = obj.c.measure(obj.meas);
-            %obj.meas = obj.d.measure(obj.meas);
-            %obj.meas = obj.e.measure(obj.meas);
-            %obj.meas = obj.f.measure(obj.meas);
+
             
         end
         
@@ -434,7 +415,7 @@ classdef field < handle
             % the robot should move in
             b = Inf;
             F = [0,0];
-            C = zeros(length(obj.meas) + 1, length(obj.meas) + 1);
+            C = zeros(length(obj.measurements(:,1)) + 1, length(obj.measurements(:,1)) + 1);
             C(1:end-1,1:end-1) = obj.fieldGen;
             angle=(theta+pi/3):pi/3:(2*pi+theta);
             Ftemp = zeros(length(angle), 2);
@@ -486,25 +467,25 @@ classdef field < handle
                     A(h) = 1;
                 else
                     M = 0;
-                    for i=1:length(tempMeas)
-                        if abs(((tempMeas(i).x).^2 ...
-                                + (tempMeas(i).y)^2).^.5 - (x(h).^2 + y(h).^2).^.5) ...
+                    for i=1:length(tempMeas(:,1))
+                        if abs(((tempMeas(i,1)).^2 ...
+                                + (tempMeas(i,2))^2).^.5 - (x(h).^2 + y(h).^2).^.5) ...
                                 < obj.sigma
-                            for j=1:length(tempMeas)
-                                if abs(((tempMeas(j).x).^2 ...
-                                        + (tempMeas(j).y).^2).^.5 ...
+                            for j=1:length(tempMeas(:,1))
+                                if abs(((tempMeas(j,1)).^2 ...
+                                        + (tempMeas(j,2)).^2).^.5 ...
                                         - (x(h).^2 + y(h).^2).^.5) < ...
                                         obj.sigma
                                     M = M + (exp(-abs(((sqrt((x(h) ...
-                                        - tempMeas(i).x).^2 + (y(h) ...
-                                        - tempMeas(i).y).^2) ...
+                                        - tempMeas(i,1)).^2 + (y(h) ...
+                                        - tempMeas(i,2)).^2) ...
                                         ./ obj.sigma)))...
-                                        - abs((t - tempMeas(i).t)...
+                                        - abs((t - tempMeas(i,4))...
                                         ./ obj.tau)) .* D(i,j) ...
-                                        .* exp(-abs(((sqrt((tempMeas(j).x...
-                                        - x(h)).^2 + (tempMeas(j).y - y(h)).^2)...
+                                        .* exp(-abs(((sqrt((tempMeas(j,1)...
+                                        - x(h)).^2 + (tempMeas(j,2) - y(h)).^2)...
                                         ./ obj.sigma))) ...
-                                        - abs(((tempMeas(j).t) - t)...
+                                        - abs(((tempMeas(j,4)) - t)...
                                         ./ obj.tau)));
                                     
                                 end
@@ -568,7 +549,7 @@ classdef field < handle
             plot(A(:,1), .04:.04:3);
         end
         
-        function [ k ] = lineSum(obj, sensor1, temp, C, theta, tempMeas)
+        function [ k ] = lineSum(obj, sensor1, C, theta, tempMeas)
             % finds the sum of the uncertainty field over the region of
             % gamma close points to the gradient field
             k = 0;
@@ -581,19 +562,19 @@ classdef field < handle
             w = obj.gamma * sin(angle);
             
             
-            h = obj.timeErrorField(sensor1.x + v,sensor1.y + w, temp.t, tempMeas, D);
+            h = obj.timeErrorField(sensor1.x + v,sensor1.y + w, tempMeas(end,4), tempMeas, D);
             k = k + sum(h);
             
             
         end
         
         function [ F, b ] = locationTest(obj, sensor1, i, j, theta, F, C)
-            temp = sensor(sensor1.x + i, sensor1.y + j, 0, obj.t);
             
-            tempMeas = [obj.meas; temp];
+            
+            tempMeas = [obj.measurements; sensor1.x + i, sensor1.y + j, 0, obj.t + .04];
                         
-            b = obj.lineSum(sensor1, temp, C, theta, tempMeas);
-            F = [temp.x,temp.y];
+            b = obj.lineSum(sensor1, C, theta, tempMeas);
+            F = [sensor1.x + i, sensor1.y + j];
             
                        
             
@@ -601,20 +582,20 @@ classdef field < handle
         
         function [ D ] = finishField(obj, C, tempMeas)
             
-            B = zeros(length(tempMeas), length(tempMeas));
-            i=length(tempMeas);
-            for j=1:length(tempMeas)
-                B(i,j) = exp(-abs(((sqrt((tempMeas(i).x - tempMeas(j).x)^2 ...
-                    + (tempMeas(i).y - tempMeas(j).y)^2)/ obj.sigma))) ...
-                    - abs((tempMeas(i).t - tempMeas(j).t)/ obj.tau));
+            B = zeros(length(tempMeas(:,1)), length(tempMeas(:,1)));
+            i=length(tempMeas(:,1));
+            for j=1:length(tempMeas(:,1))
+                B(i,j) = exp(-abs(((sqrt((tempMeas(i,1) - tempMeas(j,1))^2 ...
+                    + (tempMeas(i,2) - tempMeas(j,2))^2)/ obj.sigma))) ...
+                    - abs((tempMeas(i,4) - tempMeas(j,4))/ obj.tau));
                 
             end
             
-            j=length(tempMeas);
-            for i=1:length(tempMeas)
-                B(i,j) = exp(-abs(((sqrt((tempMeas(i).x - tempMeas(j).x)^2 ...
-                    + (tempMeas(i).y - tempMeas(j).y)^2)/ obj.sigma))) ...
-                    - abs((tempMeas(i).t - tempMeas(j).t)/ obj.tau));
+            j=length(tempMeas(:,1));
+            for i=1:length(tempMeas(:,1))
+                B(i,j) = exp(-abs(((sqrt((tempMeas(i,1) - tempMeas(j,1))^2 ...
+                    + (tempMeas(i,2) - tempMeas(j,2))^2)/ obj.sigma))) ...
+                    - abs((tempMeas(i,4) - tempMeas(j,4))/ obj.tau));
                 
             end
             B(end,end) = B(end,end) + obj.mu;
