@@ -19,24 +19,6 @@ classdef sensor < handle
             
         end
         
-        function [meas] = addField(obj, meas)
-            % used for testing purposes, produces a stationary sensor
-            % measurement
-            
-            meas = obj.measure(meas);
-            obj.t = obj.t + 1;
-        end
-        
-        function [meas] = moveSensor(obj, meas)
-            % used for testing purposes, produces a sensor which takes
-            % measurements while moving in a circle
-            
-                meas = obj.measure(meas);
-                obj.t = obj.t + 1;
-                obj.x = obj.x + cos(pi * obj.t / 10);
-                obj.y = obj.y + sin(pi * obj.t / 10);
-            
-        end
         
         function [meas] = goToCentroid(obj, meas, goal)
             % sends the sensor object to a given point
