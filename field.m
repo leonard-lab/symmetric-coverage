@@ -2,14 +2,14 @@ classdef field < handle
     %Class to run voronoi and gradient based symmetric searchs
     
     properties
-        sigma = .1;   % time constant for spatial separation of measurements
-        tau = .15;     % time constant for temporal separation of measurements
+        sigma = .15;   % time constant for spatial separation of measurements
+        tau = .2;     % time constant for temporal separation of measurements
         mu = .1;       % uncertainty in measurements, a characteristic of the sensors
-        gamma = .06;   % radius over which a gradient is determined for motion
+        gamma = .04;   % radius over which a gradient is determined for motion
         measurements = zeros(0,4);
         sensors = sensor.empty(3,0);% array of sensors as they exist at this instant in time
         runTime;       % how many seconds the Miabots will run for
-        n_robots = 6;  % number of robots
+        n_robots = 3;  % number of robots
         k1 = 4;     % coefficient for forward velocity in control law
         k2 = 4;     % coefficient for angular velocity in control law
         k3 = 0;     % coefficient for z velocity in control law
@@ -26,7 +26,7 @@ classdef field < handle
         % alternates "leaders" every time step to increase speed and force
         % symmetry
         
-        precision = 6; % number of spots considered for goal points
+        precision = 12; % number of spots considered for goal points
         polygon;       % vertices for a custom shape
         q = 0;         % counter used in fast runspeed to determine leader
         
@@ -645,6 +645,35 @@ classdef field < handle
             
         end
         
+        function [A] = timeUncertaintyCalculate(obj, x, y, t, tempMeas, D)
+            % Calculates the net uncertainty field at a given point in
+            % time, used within timeUncertaintyField
+            M = 0;
+            
+            % compares all measurements to all other measurements
+            for i=1:length(tempMeas(:,1))
+                for j=1:length(tempMeas(:,1))
+                    % sums all components of certainty
+                    M = M + (exp(-abs(((sqrt((x ...
+                        - tempMeas(i,1)).^2 + (y ...
+                        - tempMeas(i,2)).^2) ...
+                        ./ obj.sigma)))...
+                        - abs((t - tempMeas(i,4))...
+                        ./ obj.tau)) .* D(i,j) ...
+                        .* exp(-abs(((sqrt((tempMeas(j,1)...
+                        - x).^2 + (tempMeas(j,2) - y).^2)...
+                        ./ obj.sigma))) ...
+                        - abs(((tempMeas(j,4)) - t)...
+                        ./ obj.tau)));
+                    
+                end
+                
+            end
+            
+            
+            A = 1 - M;
+        end
+        
         function [ A ] = timeUncertaintyField(obj, x, y, t, tempMeas, D)
             % generates the uncertainty at a given place in space and time,
             % used in the gradient control law
@@ -661,36 +690,9 @@ classdef field < handle
                         
                         A(index) = 1;
                     else
-                        M = 0;
-                        
-                        % compares all measurements to all other measurements
-                        for i=1:length(tempMeas(:,1))
-                            for j=1:length(tempMeas(:,1))
-                                % sums all components of certainty
-                                M = M + (exp(-abs(((sqrt((x(index) ...
-                                    - tempMeas(i,1)).^2 + (y(index) ...
-                                    - tempMeas(i,2)).^2) ...
-                                    ./ obj.sigma)))...
-                                    - abs((t - tempMeas(i,4))...
-                                    ./ obj.tau)) .* D(i,j) ...
-                                    .* exp(-abs(((sqrt((tempMeas(j,1)...
-                                    - x(index)).^2 + (tempMeas(j,2) - y(index)).^2)...
-                                    ./ obj.sigma))) ...
-                                    - abs(((tempMeas(j,4)) - t)...
-                                    ./ obj.tau)));
-                                
-                            end
-                            
-                            %  end
-                            
-                            %end
-                        end
-                        
-                        
-                        A(index) = 1 - M;
+                        A(index) = obj.timeUncertaintyCalculate(x(index), y(index), t, tempMeas, D);
                     end
                 end
-                
                 % conditions for a circular region of search
             elseif strcmp(obj.shape,'circle') == true
                 A = zeros(1,length(x));
@@ -701,31 +703,7 @@ classdef field < handle
                     if (x(index)^2 + y(index)^2)^.5 > obj.radius
                         A(index) = 1;
                     else
-                        M = 0;
-                        % compares all measurements to all other measurements
-                        for i=1:length(tempMeas(:,1))
-                            
-                            for j=1:length(tempMeas(:,1))
-                                
-                                % sums all components of certainty
-                                M = M + (exp(-abs(((sqrt((x(index) ...
-                                    - tempMeas(i,1)).^2 + (y(index) ...
-                                    - tempMeas(i,2)).^2) ...
-                                    ./ obj.sigma)))...
-                                    - abs((t - tempMeas(i,4))...
-                                    ./ obj.tau)) .* D(i,j) ...
-                                    .* exp(-abs(((sqrt((tempMeas(j,1)...
-                                    - x(index)).^2 + (tempMeas(j,2) - y(index)).^2)...
-                                    ./ obj.sigma))) ...
-                                    - abs(((tempMeas(j,4)) - t)...
-                                    ./ obj.tau)));
-                                
-                            end
-                            
-                        end
-                        
-                        
-                        A(index) = 1 - M;
+                        A(index) = obj.timeUncertaintyCalculate(x(index), y(index), t, tempMeas, D);
                     end
                 end
                 
@@ -739,32 +717,7 @@ classdef field < handle
                     if x(index) > obj.radius || x(index) < - obj.radius || y(index) > obj.radius || y(index) < -obj.radius
                         A(index) = 1;
                     else
-                        M = 0;
-                        % compares all measurements to all other measurements
-                        for i=1:length(tempMeas(:,1))
-                            
-                            for j=1:length(tempMeas(:,1))
-                                
-                                % sums all components of certainty
-                                M = M + (exp(-abs(((sqrt((x(index) ...
-                                    - tempMeas(i,1)).^2 + (y(index) ...
-                                    - tempMeas(i,2)).^2) ...
-                                    ./ obj.sigma)))...
-                                    - abs((t - tempMeas(i,4))...
-                                    ./ obj.tau)) .* D(i,j) ...
-                                    .* exp(-abs(((sqrt((tempMeas(j,1)...
-                                    - x(index)).^2 + (tempMeas(j,2) - y(index)).^2)...
-                                    ./ obj.sigma))) ...
-                                    - abs(((tempMeas(j,4)) - t)...
-                                    ./ obj.tau)));
-                                
-                                
-                                
-                            end
-                        end
-                        
-                        
-                        A(index) = 1 - M;
+                        A(index) = obj.timeUncertaintyCalculate(x(index), y(index), t, tempMeas, D);
                     end
                 end
                 
@@ -778,32 +731,8 @@ classdef field < handle
                     if inpolygon(x(index),y(index),obj.polygon(:,1),obj.polygon(:,2)) == 0
                         A(index) = 1;
                     else
-                        M = 0;
-                        % compares all measurements to all other measurements
-                        for i=1:length(tempMeas(:,1))
-                            
-                            for j=1:length(tempMeas(:,1))
-                                
-                                % sums all components of certainty
-                                M = M + (exp(-abs(((sqrt((x(index) ...
-                                    - tempMeas(i,1)).^2 + (y(index) ...
-                                    - tempMeas(i,2)).^2) ...
-                                    ./ obj.sigma)))...
-                                    - abs((t - tempMeas(i,4))...
-                                    ./ obj.tau)) .* D(i,j) ...
-                                    .* exp(-abs(((sqrt((tempMeas(j,1)...
-                                    - x(index)).^2 + (tempMeas(j,2) - y(index)).^2)...
-                                    ./ obj.sigma))) ...
-                                    - abs(((tempMeas(j,4)) - t)...
-                                    ./ obj.tau)));
-                                
-                                
-                                
-                            end
-                        end
+                        A(index) = obj.timeUncertaintyCalculate(x(index), y(index), t, tempMeas, D);
                         
-                        
-                        A(index) = 1 - M;
                     end
                 end
             end
@@ -818,7 +747,7 @@ classdef field < handle
             % completes the covariance based on the trial sensor
             D = inv(obj.finishCovariance(C, tempMeas));
             
-           
+            
             angle = (theta+pi/(.5*obj.precision)):pi/(.5*obj.precision):(2*pi+theta);
             v = obj.gamma * cos(angle);
             w = obj.gamma * sin(angle);
