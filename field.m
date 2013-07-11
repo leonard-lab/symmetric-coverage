@@ -74,7 +74,7 @@ classdef field < handle
                 
                 % rotates goal point to other robots
                 for i=1:obj.n_robots
-                    Goals(i,:) = GoalPoint*[cos(2*(i-r-1)*pi/(obj.n_robots)) sin(2*(i-r-1)*pi/(obj.n_robots)); -sin(2*(i-r-1)*pi/(obj.n_robots)) cos(2*(i-r-1)*pi/(obj.n_robots))];
+                    Goals(i,:) = GoalPoint*[cos(-2*(i-r-1)*pi/(obj.n_robots)) sin(-2*(i-r-1)*pi/(obj.n_robots)); -sin(-2*(i-r-1)*pi/(obj.n_robots)) cos(-2*(i-r-1)*pi/(obj.n_robots))];
                 end
                 
                 

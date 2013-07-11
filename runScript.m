@@ -2,7 +2,7 @@
 clear all
 %init = [sqrt(3)/20 -.05 0 0; sqrt(3)/20 .05 0 pi/3; 0 .1 0 2*pi/3; -sqrt(3)/20 .05 0 pi; -sqrt(3)/20 -.05 0 4*pi/3; 0 -.1 0 5*pi/3];
 %init = [0 .5 0 0; 0 -.5 0 pi];
-init = [sqrt(3)/20 -.05 0 0; 0 .1 0 2*pi/3; -sqrt(3)/20 -.05 0 4*pi/3];
+init = [sqrt(3)/20 -.05 0 0; -sqrt(3)/20 -.05 0 4*pi/3; 0 .1 0 2*pi/3];
 S = field();
 %close all
 S.shape = 'circle';
