@@ -2,10 +2,10 @@ classdef field < handle
     %Class to run voronoi and gradient based symmetric searchs
     
     properties
-        sigma = .07;   % time constant for spatial separation of measurements
-        tau = .15;     % time constant for temporal separation of measurements
+        sigma = .14;   % time constant for spatial separation of measurements
+        tau = .5;     % time constant for temporal separation of measurements
         mu = .1;       % uncertainty in measurements, a characteristic of the sensors
-        gamma = .04;   % radius over which a gradient is determined for motion
+        gamma = .06;   % radius over which a gradient is determined for motion
         measurements = zeros(0,4);
         sensors = sensor.empty(3,0);% array of sensors as they exist at this instant in time
         runTime;       % how many seconds the Miabots will run for
@@ -190,7 +190,7 @@ classdef field < handle
             % removes measurements from the meas array when they are no
             % longer relevant
             
-            measMax = 4 * obj.n_robots;
+            measMax = 2 * obj.n_robots;
             % since measurements are stored oldest to newest, we can remove
             % the first safely
             while length(obj.measurements(:,1)) > measMax
@@ -652,7 +652,13 @@ classdef field < handle
             
             % compares all measurements to all other measurements
             for i=1:length(tempMeas(:,1))
+                if abs(((tempMeas(i,1)).^2 ...
+                                    + (tempMeas(i,2)).^2 + (tempMeas(i,3)).^2).^.5 - (x.^2 + y.^2).^.5) ...
+                                    < 3 * obj.sigma
                 for j=1:length(tempMeas(:,1))
+                    if abs(((tempMeas(j,1)).^2 ...
+                                    + (tempMeas(j,2)).^2 + (tempMeas(j,3)).^2).^.5 - (x.^2 + y.^2).^.5) ...
+                                    < 3 * obj.sigma
                     % sums all components of certainty
                     M = M + (exp(-abs(((sqrt((x ...
                         - tempMeas(i,1)).^2 + (y ...
@@ -666,6 +672,8 @@ classdef field < handle
                         - abs(((tempMeas(j,4)) - t)...
                         ./ obj.tau)));
                     
+                    end
+                end
                 end
                 
             end
