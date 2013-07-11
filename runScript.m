@@ -16,12 +16,15 @@ end
 
 % call control law for robot motion
 control_law = @(t,x) S.control_law(t,x);
-noise = [0.002 0.002 0 0.001];
+noise = [0.001 0.001 0 0.0006];
 % calls new Miabot object that actuates robot motion
 m = Miabots(init, control_law, 'velocity', S.runTime,...
     'sim', true);
 m.start
-
+%pause(S.runTime);
+%m.stop()
+%m.stop()
+%m.shutdown()
 
 figure
 col=hsv(S.n_robots);

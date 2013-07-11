@@ -2,21 +2,21 @@ classdef field < handle
     %Class to run voronoi and gradient based symmetric searchs
     
     properties
-        sigma = .15;   % time constant for spatial separation of measurements
-        tau = .2;     % time constant for temporal separation of measurements
+        sigma = .07;   % time constant for spatial separation of measurements
+        tau = .15;     % time constant for temporal separation of measurements
         mu = .1;       % uncertainty in measurements, a characteristic of the sensors
         gamma = .04;   % radius over which a gradient is determined for motion
         measurements = zeros(0,4);
         sensors = sensor.empty(3,0);% array of sensors as they exist at this instant in time
         runTime;       % how many seconds the Miabots will run for
         n_robots = 3;  % number of robots
-        k1 = 4;     % coefficient for forward velocity in control law
-        k2 = 4;     % coefficient for angular velocity in control law
+        k1 = 1;     % coefficient for forward velocity in control law
+        k2 = 1;     % coefficient for angular velocity in control law
         k3 = 0;     % coefficient for z velocity in control law
         t;             % current time
         tPast = -.04;         % previous time
         D;          % matrix of covariances between measurements
-        radius = 1;    % distance to edge of survey area
+        radius = .3;    % distance to edge of survey area
         shape = 'triangle'
         % shape of the boundary area. Currently accepted are circle,
         % square, triangle, and custom.
@@ -26,7 +26,7 @@ classdef field < handle
         % alternates "leaders" every time step to increase speed and force
         % symmetry
         
-        precision = 12; % number of spots considered for goal points
+        precision = 6; % number of spots considered for goal points
         polygon;       % vertices for a custom shape
         q = 0;         % counter used in fast runspeed to determine leader
         
