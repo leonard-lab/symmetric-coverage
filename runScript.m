@@ -2,14 +2,15 @@
 clear all
 %init = [sqrt(3)/20 -.05 0 0; sqrt(3)/20 .05 0 pi/3; 0 .1 0 2*pi/3; -sqrt(3)/20 .05 0 pi; -sqrt(3)/20 -.05 0 4*pi/3; 0 -.1 0 5*pi/3];
 %init = [0 .5 0 0; 0 -.5 0 pi];
-init = [sqrt(3)/20 -.05 0 0; -sqrt(3)/20 -.05 0 4*pi/3; 0 .1 0 2*pi/3];
+%init = [sqrt(3)/20 -.05 0 0; -sqrt(3)/20 -.05 0 4*pi/3; 0 .1 0 2*pi/3];
+init = [0 .5 0 .1; .5 0 0 3*pi/2 + .1; 0 -.5 0 pi+.1; -.5 0 0 pi/2 + .1];
 S = field();
 %close all
-S.shape = 'custom';
+S.shape = 'square';
 %S.polygon = [1 1; -1 1; -1 -1; 1 -1; 1 1];
 S.polygon = S.radius * [1.5 .5*sqrt(3); 0 sqrt(3); -1.5 .5*sqrt(3); -1.5 -.5*sqrt(3); 0 -sqrt(3); 1.5 -.5*sqrt(3); 1.5 .5*sqrt(3)];
-%S.runspeed = 'slow';
-S.runTime = 100;
+S.runspeed = 'slow';
+S.runTime = 60;
 if matlabpool('size') == 0 % checking to see if my pool is already open
     matlabpool open 2 % can do more on computer with more cores
 end
@@ -19,12 +20,12 @@ control_law = @(t,x) S.control_law(t,x);
 noise = [0.001 0.001 0 0.0006];
 % calls new Miabot object that actuates robot motion
 m = Miabots(init, control_law, 'velocity', S.runTime,...
-    'sim', false);
+    'sim', true, 'Ts', 0.075);
 m.start
-pause(S.runTime);
-m.stop()
-m.stop()
-m.shutdown()
+%pause(S.runTime);
+%m.stop()
+%m.stop()
+%m.shutdown()
 
 figure
 col=hsv(S.n_robots);

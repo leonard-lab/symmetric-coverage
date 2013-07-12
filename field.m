@@ -2,21 +2,19 @@ classdef field < handle
     %Class to run voronoi and gradient based symmetric searchs
     
     properties
-        sigma = .14;   % time constant for spatial separation of measurements
-        tau = .5;     % time constant for temporal separation of measurements
-        mu = .1;       % uncertainty in measurements, a characteristic of the sensors
-        gamma = .06;   % radius over which a gradient is determined for motion
-        measurements = zeros(0,4);
-        sensors = sensor.empty(3,0);% array of sensors as they exist at this instant in time
-        runTime;       % how many seconds the Miabots will run for
-        n_robots = 3;  % number of robots
-        k1 = 1;     % coefficient for forward velocity in control law
-        k2 = 1;     % coefficient for angular velocity in control law
-        k3 = 0;     % coefficient for z velocity in control law
-        t;             % current time
-        tPast = -.04;         % previous time
-        D;          % matrix of covariances between measurements
-        radius = .3;    % distance to edge of survey area
+        sigma = .1;    % time constant for spatial separation of measurements
+        tau = .2;       % time constant for temporal separation of measurements
+        mu = .1;        % uncertainty in measurements, a characteristic of the sensors
+        gamma = .04;    % radius over which a gradient is determined for motion
+        timeToDelete = 3;
+        
+        runTime;        % how many seconds the Miabots will run for
+        n_robots = 4;   % number of robots
+        k1 = 4;         % coefficient for forward velocity in control law
+        k2 = 1;         % coefficient for angular velocity in control law
+        k3 = 0;         % coefficient for z velocity in control law
+                      % matrix of covariances between measurements
+        radius = .6;    % distance to edge of survey area
         shape = 'triangle'
         % shape of the boundary area. Currently accepted are circle,
         % square, triangle, and custom.
@@ -27,9 +25,13 @@ classdef field < handle
         % symmetry
         
         precision = 6; % number of spots considered for goal points
-        polygon;       % vertices for a custom shape
-        q = 0;         % counter used in fast runspeed to determine leader
-        
+        t;              % current time
+        tPast = -.04;  % previous time
+        D;
+        polygon;        % vertices for a custom shape
+        q = 0;          % counter used in fast runspeed to determine leader
+        measurements = zeros(0,4);
+        robots = zeros(0,4);
         
     end
     
@@ -40,7 +42,7 @@ classdef field < handle
             
             % initialize sensors
             for i=1:obj.n_robots
-                obj.sensors(i) = sensor(0, 0, 0, 0);
+                obj.robots(i,:) = [0 0 0 0];
             end
             
         end
@@ -54,11 +56,8 @@ classdef field < handle
             % initialize the sensor objects to the current positions, and
             % record the current measurements
             for i=1:obj.n_robots
-                obj.sensors(i).x = states(i,1);
-                obj.sensors(i).y = states(i,2);
-                obj.sensors(i).z = states(i,3);
-                obj.sensors(i).t = t;
-                [obj.measurements] = obj.sensors(i).measure(obj.measurements);
+                obj.robots(i,:) = [states(i,1) states(i,2) states(i,3) t];
+                obj.measurements = [obj.measurements; obj.robots(i,:)];
                 
             end
             
@@ -69,8 +68,7 @@ classdef field < handle
                 Goals = zeros(obj.n_robots,2);
                 
                 % determines the goal point of 'leader' robot
-                robot = [obj.sensors(r+1).x obj.sensors(r+1).y obj.sensors(r+1).z obj.sensors(r+1).t];
-                GoalPoint = obj.bestDirection(robot, states(r+1,6));
+                GoalPoint = obj.bestDirection(obj.robots(r+1,:), states(r+1,6));
                 
                 % rotates goal point to other robots
                 for i=1:obj.n_robots
@@ -132,9 +130,11 @@ classdef field < handle
                 
                 % calculates each robot individually, per the actual control
                 % law
-                for i=1:obj.n_robots
-                    robot = [obj.sensors(i).x obj.sensors(i).y obj.sensors(i).z obj.sensors(i).t];
-                    Goals = obj.bestDirection(robot, states(i,6));
+                parfor i=1:obj.n_robots
+                   if t < .04
+                       commands(i,:) = [.2 0 0];
+                   else
+                    Goals = obj.bestDirection(obj.robots(i,:), states(i,6));
                     % Get current states of the robot, x,y,z,heading, and
                     % velocities
                     
@@ -172,9 +172,9 @@ classdef field < handle
                     
                     % pass forward velocity and angular velocity to the command
                     % matrix
-                    commands(i,1) = u_x;
-                    commands(i,2) = u_theta;
+                    commands(i,:) = [u_x u_theta 0];
                     
+                end
                 end
             end
             
@@ -190,7 +190,7 @@ classdef field < handle
             % removes measurements from the meas array when they are no
             % longer relevant
             
-            measMax = 2 * obj.n_robots;
+            measMax = obj.timeToDelete * obj.n_robots;
             % since measurements are stored oldest to newest, we can remove
             % the first safely
             while length(obj.measurements(:,1)) > measMax
@@ -227,33 +227,33 @@ classdef field < handle
             obj.D = inv(obj.fieldGen);
             
             % arrays for finding the center of mass of each region
-            densitySums = zeros(11,length(obj.sensors));
-            sumsx = zeros(11, length(obj.sensors));
-            sumsy = zeros(11, length(obj.sensors));
-            sumsz = zeros(11, length(obj.sensors));
-            sensors = obj.sensors;
+            densitySums = zeros(11,length(obj.robots(:,1)));
+            sumsx = zeros(11, length(obj.robots(:,1)));
+            sumsy = zeros(11, length(obj.robots(:,1)));
+            sumsz = zeros(11, length(obj.robots(:,1)));
+            sensors = obj.robots;
             
             parfor u=1:11
-                i = (.2 * (u-6));
-                tempDensitySums = zeros(length(sensors), 1);
-                tempSumsx = zeros(length(sensors), 1);
-                tempSumsy = zeros(length(sensors), 1);
-                tempSumsz = zeros(length(sensors), 1);
+                i = (.2 * (u-6)); %GENERALIZE
+                tempDensitySums = zeros(length(sensors(:,1)), 1);
+                tempSumsx = zeros(length(sensors(:,1)), 1);
+                tempSumsy = zeros(length(sensors(:,1)), 1);
+                tempSumsz = zeros(length(sensors(:,1)), 1);
                 
                 for j=-1:.2:1
                     for z=0
                         % put each point being measured into its region
-                        r = ((i - sensors(1).x)^2 + ...
-                            (j - sensors(1).y)^2 + ...
-                            (z - sensors(1).z)^2)^.5;
+                        r = ((i - sensors(1,1))^2 + ...
+                            (j - sensors(1,2))^2 + ...
+                            (z - sensors(1,3))^2)^.5;
                         m = 1;
                         m1 = 0;
                         n = 0;
                         
                         % designates a point with its nearest sensor
-                        for k=2:length(sensors)
-                            rPrime = ((i - sensors(k).x)^2 + ...
-                                (j - sensors(k).y)^2 + (z - sensors(k).z)^2)^.5;
+                        for k=2:length(sensors(:,1))
+                            rPrime = ((i - sensors(k,1))^2 + ...
+                                (j - sensors(k,2))^2 + (z - sensors(k,3))^2)^.5;
                             if rPrime < r
                                 r = rPrime;
                                 m = k;
@@ -294,23 +294,23 @@ classdef field < handle
                 sumsz(u,:) = tempSumsz;
             end
             
-            sumx = zeros(1,length(obj.sensors));
-            sumy = zeros(1,length(obj.sensors));
-            sumz = zeros(1,length(obj.sensors));
+            sumx = zeros(1,length(obj.sensors(1,:)));
+            sumy = zeros(1,length(obj.sensors(1,:)));
+            sumz = zeros(1,length(obj.sensors(1,:)));
             
             % total the individual values found inside the parfor loop
-            densitySum = zeros(1,length(obj.sensors));
-            h=1:length(obj.sensors);
+            densitySum = zeros(1,length(obj.sensors(1,:)));
+            h=1:length(obj.sensors(1,:));
             sumx(h) = sum(sumsx(:,h));
             sumy(h) = sum(sumsy(:,h));
             sumz(h) = sum(sumsz(:,h));
             densitySum(h) = sum(densitySums(:,h));
             
-            centroids = zeros(length(obj.sensors), 3);
+            centroids = zeros(length(obj.sensors(1,:)), 3);
             
             % calculate centroids based on a weighted center of mass
             % equation
-            for i=1:length(obj.sensors)
+            for i=1:length(obj.sensors(1,:))
                 centroids(i,1) = sumx(i) / densitySum(i);
                 centroids(i,2) = sumy(i) / densitySum(i);
                 centroids(i,3) = sumz(i) / densitySum(i);
@@ -353,13 +353,10 @@ classdef field < handle
                                             M = M + (exp(-abs(((sqrt((x ...
                                                 - obj.measurements(i,1)).^2 + (y ...
                                                 - obj.measurements(i,2)).^2 + (z - obj.measurements(i,3)).^2) ...
-                                                ./ obj.sigma)))...
-                                                - abs((obj.t - obj.measurements(i,4))...
-                                                ./ obj.tau)) .* obj.D(i,j) ...
-                                                .* exp(-abs(((sqrt((obj.measurements(j,1)...
+                                                ./ obj.sigma))) - abs((obj.t - obj.measurements(i,4))...
+                                                ./ obj.tau)) .* obj.D(i,j) .* exp(-abs(((sqrt((obj.measurements(j,1)...
                                                 - x).^2 + (obj.measurements(j,2) - y).^2 + (obj.measurements(j,3) - z).^2)...
-                                                ./ obj.sigma))) ...
-                                                - abs(((obj.measurements(j,4)) - obj.t)...
+                                                ./ obj.sigma))) - abs(((obj.measurements(j,4)) - obj.t)...
                                                 ./ obj.tau)));
                                             
                                         end
@@ -521,11 +518,8 @@ classdef field < handle
             % sets sensors objects to their current position, and makes a
             % measurement
             for i=1:obj.n_robots
-                obj.sensors(i).x = states(i,1);
-                obj.sensors(i).y = states(i,2);
-                obj.sensors(i).z = states(i,3);
-                obj.sensors(i).t = t;
-                obj.measurements = obj.sensors(i).measure(obj.measurements);
+                obj.robots(i,:) = [states(i,1) states(i,2) states(i,3) t];
+                obj.measurements = [obj.measurements; obj.robots(i,:)];
             end
             
             % computes the centroid of the voronoi region where each
@@ -622,7 +616,9 @@ classdef field < handle
                     % if two spots tie, pick the first going counterclockwise
                     % for the current heading
                 elseif bestTemp(index) == best
-                    
+                    'yes'
+                    'yes'
+                    'yes'
                     % theta1 and theta2 are the angles from the heading
                     if Ftemp(index,1) == 0
                         theta1 = wrapTo2Pi(pi/2 - theta);
@@ -652,13 +648,13 @@ classdef field < handle
             
             % compares all measurements to all other measurements
             for i=1:length(tempMeas(:,1))
-                if abs(((tempMeas(i,1)).^2 ...
-                                    + (tempMeas(i,2)).^2 + (tempMeas(i,3)).^2).^.5 - (x.^2 + y.^2).^.5) ...
-                                    < 3 * obj.sigma
+                %if abs(((tempMeas(i,1)).^2 ...
+                %                    + (tempMeas(i,2)).^2 + (tempMeas(i,3)).^2).^.5 - (x.^2 + y.^2).^.5) ...
+                %                    < 3 * obj.sigma
                 for j=1:length(tempMeas(:,1))
-                    if abs(((tempMeas(j,1)).^2 ...
-                                    + (tempMeas(j,2)).^2 + (tempMeas(j,3)).^2).^.5 - (x.^2 + y.^2).^.5) ...
-                                    < 3 * obj.sigma
+                %    if abs(((tempMeas(j,1)).^2 ...
+                %                    + (tempMeas(j,2)).^2 + (tempMeas(j,3)).^2).^.5 - (x.^2 + y.^2).^.5) ...
+                %                    < 3 * obj.sigma
                     % sums all components of certainty
                     M = M + (exp(-abs(((sqrt((x ...
                         - tempMeas(i,1)).^2 + (y ...
@@ -673,8 +669,8 @@ classdef field < handle
                         ./ obj.tau)));
                     
                     end
-                end
-                end
+               % end
+               % end
                 
             end
             
