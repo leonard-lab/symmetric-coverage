@@ -2,15 +2,15 @@ classdef field < handle
     %Class to run voronoi and gradient based symmetric searchs
     
     properties
-        sigma = .1;    % time constant for spatial separation of measurements
+        sigma = .06;    % time constant for spatial separation of measurements
         tau = .2;       % time constant for temporal separation of measurements
         mu = .1;        % uncertainty in measurements, a characteristic of the sensors
-        gamma = .04;    % radius over which a gradient is determined for motion
-        timeToDelete = 3;
+        gamma = .01;    % radius over which a gradient is determined for motion
+        timeToDelete = 6;
         
         runTime;        % how many seconds the Miabots will run for
         n_robots = 4;   % number of robots
-        k1 = 4;         % coefficient for forward velocity in control law
+        k1 = 8;         % coefficient for forward velocity in control law
         k2 = 1;         % coefficient for angular velocity in control law
         k3 = 0;         % coefficient for z velocity in control law
                       % matrix of covariances between measurements
@@ -616,8 +616,6 @@ classdef field < handle
                     % if two spots tie, pick the first going counterclockwise
                     % for the current heading
                 elseif bestTemp(index) == best
-                    'yes'
-                    'yes'
                     'yes'
                     % theta1 and theta2 are the angles from the heading
                     if Ftemp(index,1) == 0
