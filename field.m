@@ -2,19 +2,20 @@ classdef field < handle
     %Class to run voronoi and gradient based symmetric searchs
     
     properties
-        sigma = .06;    % time constant for spatial separation of measurements
+        sigma = .2;    % time constant for spatial separation of measurements
         tau = .2;       % time constant for temporal separation of measurements
         mu = .1;        % uncertainty in measurements, a characteristic of the sensors
-        gamma = .01;    % radius over which a gradient is determined for motion
-        timeToDelete = 6;
+        gamma = .04;    % radius over which a gradient is determined for motion
+        timeToDelete = 8;
+        gridSize = -1:.2:1;
         
         runTime;        % how many seconds the Miabots will run for
-        n_robots = 4;   % number of robots
-        k1 = 8;         % coefficient for forward velocity in control law
+        n_robots = 9;   % number of robots
+        k1 = 4;         % coefficient for forward velocity in control law
         k2 = 1;         % coefficient for angular velocity in control law
         k3 = 0;         % coefficient for z velocity in control law
                       % matrix of covariances between measurements
-        radius = .6;    % distance to edge of survey area
+        radius = .5;    % distance to edge of survey area
         shape = 'triangle'
         % shape of the boundary area. Currently accepted are circle,
         % square, triangle, and custom.
@@ -24,7 +25,7 @@ classdef field < handle
         % alternates "leaders" every time step to increase speed and force
         % symmetry
         
-        precision = 6; % number of spots considered for goal points
+        precision = 12; % number of spots considered for goal points
         t;              % current time
         tPast = -.04;  % previous time
         D;
@@ -131,9 +132,9 @@ classdef field < handle
                 % calculates each robot individually, per the actual control
                 % law
                 parfor i=1:obj.n_robots
-                   if t < .04
-                       commands(i,:) = [.2 0 0];
-                   else
+                   %if t < .04
+                   %    commands(i,:) = [.2 0 0];
+                   %else
                     Goals = obj.bestDirection(obj.robots(i,:), states(i,6));
                     % Get current states of the robot, x,y,z,heading, and
                     % velocities
@@ -174,7 +175,7 @@ classdef field < handle
                     % matrix
                     commands(i,:) = [u_x u_theta 0];
                     
-                end
+               % end
                 end
             end
             
@@ -233,14 +234,14 @@ classdef field < handle
             sumsz = zeros(11, length(obj.robots(:,1)));
             sensors = obj.robots;
             
-            parfor u=1:11
-                i = (.2 * (u-6)); %GENERALIZE
+            parfor u=1:length(obj.gridSize)
+                i = obj.gridSize(u);
                 tempDensitySums = zeros(length(sensors(:,1)), 1);
                 tempSumsx = zeros(length(sensors(:,1)), 1);
                 tempSumsy = zeros(length(sensors(:,1)), 1);
                 tempSumsz = zeros(length(sensors(:,1)), 1);
                 
-                for j=-1:.2:1
+                for j=obj.gridSize
                     for z=0
                         % put each point being measured into its region
                         r = ((i - sensors(1,1))^2 + ...
@@ -601,10 +602,18 @@ classdef field < handle
             dt = obj.t - obj.tPast; % we assume timesteps are roughly equal and use this for the future step
             
             % check each spot and determine their quality
-            parfor index=1:length(angle)
-                i = obj.gamma * cos(angle(index));
-                j = obj.gamma * sin(angle(index));
-                [Ftemp(index, :),bestTemp(index)] = locationTest(obj, robot, i, j, theta, C, dt);
+            if strcmp(obj.runspeed,'fast') == 1
+                parfor index=1:length(angle)
+                    i = obj.gamma * cos(angle(index));
+                    j = obj.gamma * sin(angle(index));
+                    [Ftemp(index, :),bestTemp(index)] = locationTest(obj, robot, i, j, theta, C, dt);
+                end
+            else
+                for index=1:length(angle)
+                    i = obj.gamma * cos(angle(index));
+                    j = obj.gamma * sin(angle(index));
+                    [Ftemp(index, :),bestTemp(index)] = locationTest(obj, robot, i, j, theta, C, dt);
+                end
             end
             
             % pick the best direction to move in
