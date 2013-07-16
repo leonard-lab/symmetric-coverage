@@ -7,16 +7,16 @@ init = [sqrt(3)/20 -.05 0 0; -sqrt(3)/20 -.05 0 -2*pi/3; 0 .1 0 2*pi/3];
 %init = .5 .* [ 0.5000 0 0 0; 0.3830 -0.3214 0 2*pi/9; 0.0868 -0.4924 0 4*pi/9; 
 %    -0.2500 -0.4330 0 6*pi/9; -0.4698 -0.1710 0 8*pi/9; -0.4698 0.1710 0 10*pi/9
 %    -0.2500 0.4330 0 12*pi/9; 0.0868 0.4924 0 14*pi/9; 0.3830 0.3214 0 16*pi/9];
-S = field(length(init(:,1));
+S = field(length(init(:,1)));
 %close all
-%S.shape = 'circle';
+S.shape = 'sphere';
 %S.polygon = [1 1; -1 1; -1 -1; 1 -1; 1 1];
 %S.polygon = S.radius * [1.5 .5*sqrt(3); 0 sqrt(3); -1.5 .5*sqrt(3); -1.5 -.5*sqrt(3); 0 -sqrt(3); 1.5 -.5*sqrt(3); 1.5 .5*sqrt(3)];
-S.polygon = [0 1; 1/sqrt(12) .5; sqrt(3)/2 .5; sqrt(3)/3 0; sqrt(3)/2 -.5;
-    1/sqrt(12) -.5; 0 -1; -1/sqrt(12) -.5; -sqrt(3)/2 -.5; -sqrt(3)/3 0;
-    -sqrt(3)/2 .5; -1/sqrt(12) .5; 0 1];
+%S.polygon = [0 1; 1/sqrt(12) .5; sqrt(3)/2 .5; sqrt(3)/3 0; sqrt(3)/2 -.5;
+%    1/sqrt(12) -.5; 0 -1; -1/sqrt(12) -.5; -sqrt(3)/2 -.5; -sqrt(3)/3 0;
+%    -sqrt(3)/2 .5; -1/sqrt(12) .5; 0 1];
 S.runspeed = 'slow';
-S.runTime = 15;
+S.runTime = 2;
 if matlabpool('size') == 0 % checking to see if my pool is already open
     matlabpool open 2 % can do more on computer with more cores
 end
@@ -39,7 +39,7 @@ col=hsv(S.n_robots);
 for i=1:S.n_robots
 m.shutdown()
     hold on
-    plot3(m.get_history(i,'x'), m.get_history(i,'y'),, m.get_history(i,'z') 'color', col(i,:));
+    plot3(m.get_history(i,'x'), m.get_history(i,'y'), m.get_history(i,'z'), 'color', col(i,:));
 end
 xlabel('X-position');
 ylabel('Y-position');
@@ -54,7 +54,21 @@ if strcmp(S.shape,'circle') == true
     angle=0:0.01:2*pi;
     x=S.radius*cos(angle);
     y=S.radius*sin(angle);
-    plot(x,y);
+    plot3(x,y);
+
+    
+end
+
+if strcmp(S.shape,'sphere') == true
+    hold on
+    angle=0:0.1:2*pi;
+    x=S.radius*cos(angle);
+    y=S.radius*sin(angle);
+    plot3(x,y,zeros(length(x)));
+    hold on
+    plot3(zeros(length(x)),x,y);
+    hold on
+    plot3(y,zeros(length(x)),x);
 end
 if strcmp(S.shape,'square') == true
     line([-S.radius -S.radius], [-S.radius S.radius]);

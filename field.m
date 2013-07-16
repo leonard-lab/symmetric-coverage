@@ -3,15 +3,15 @@ classdef field < handle
     
     properties
         sigma = .05;    % time constant for spatial separation of measurements
-        tau = .4;       % time constant for temporal separation of measurements
+        tau = .08;       % time constant for temporal separation of measurements
         mu = .1;        % uncertainty in measurements, a characteristic of the sensors
         gamma = .04;    % radius over which a gradient is determined for motion
-        timeToDelete = 20;
+        timeToDelete = 4;
         gridSize = -1:.2:1;
         zGridSize = 0;
         runTime;        % how many seconds the Miabots will run for
         n_robots;   % number of robots
-        k1 = 1;         % coefficient for forward velocity in control law
+        k1 = 8;         % coefficient for forward velocity in control law
         k2 = 1;         % coefficient for angular velocity in control law
         k3 = 1;         % coefficient for z velocity in control law
                       % matrix of covariances between measurements
@@ -126,6 +126,74 @@ classdef field < handle
                     
                     
                 end
+                
+            elseif strcmp(obj.runspeed,'average')==true
+                
+                Goals = zeros(length(obj.n_robots),2);
+                parfor i=1:obj.n_robots
+                    Goals(i,:) = obj.bestDirection(obj.robots(i,:), states(i,6));
+                end
+             
+                for i=1:obj.n_robots
+                    Goals(i,:) = Goals(i,:)*[cos(2*(i-1)*pi/(obj.n_robots)) sin(2*(i-1)*pi/(obj.n_robots)); -sin(2*(i-1)*pi/(obj.n_robots)) cos(2*(i-1)*pi/(obj.n_robots))];
+                end
+                Goal = [sum(Goals(:,1))/obj.n_robots sum(Goals(:,2))/obj.n_robots];
+            
+                for i=1:obj.n_robots
+                    Goals(i,:) = Goal*[cos(-2*(i-1)*pi/(obj.n_robots)) sin(-2*(i-1)*pi/(obj.n_robots)); -sin(-2*(i-1)*pi/(obj.n_robots)) cos(-2*(i-1)*pi/(obj.n_robots))];
+                end
+                
+                
+                commands = zeros(obj.n_robots,3);
+                obj.q = obj.q + 1;
+                
+                % use the goal points to determine commands for u_x and u_theta
+                for i=1:obj.n_robots
+                    
+                    % F = obj.bestDirection(obj.sensors(i), states(i,6));
+                    % Get current states of the robot, x,y,z,heading, and
+                    % velocities
+                    
+                    x = states(i,1);
+                    y = states(i,2);
+                    z = states(i,3);
+                    v_x = states(i,4);
+                    v_y = states(i,5);
+                    theta = states(i,6);
+                    theta_dot = states(i,7);
+                    
+                    xgoal = Goals(i,1);
+                    ygoal = Goals(i,2);
+                    
+                    
+                    % angle that the current heading is displaced from desired
+                    % heading
+                    phi = wrapToPi(atan2(ygoal-y,xgoal-x)-theta);
+                    
+                    % if statement to determine control laws for angular
+                    % velocity
+                    if (phi <= pi/2) && (phi >= -pi/2)
+                        u_theta = (obj.k2)*sin(phi);
+                    else
+                        u_theta = -(obj.k2)*sin(phi);
+                    end
+                    
+                    r = ((xgoal-x)^2+(ygoal-y)^2)^.5; % distance to goal
+                    % position
+                    
+                    
+                    
+                    % control law for forward velocity
+                    u_x = ((obj.k1)*r*cos(phi));
+                    
+                    % pass forward velocity and angular velocity to the command
+                    % matrix
+                    commands(i,1) = u_x;
+                    commands(i,2) = u_theta;
+                    
+                    
+                end
+                
             else
                 commands = zeros(obj.n_robots,3);
                 
