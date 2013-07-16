@@ -3,14 +3,14 @@ classdef field < handle
     
     properties
         sigma = .05;    % time constant for spatial separation of measurements
-        tau = 1;       % time constant for temporal separation of measurements
+        tau = .4;       % time constant for temporal separation of measurements
         mu = .1;        % uncertainty in measurements, a characteristic of the sensors
         gamma = .04;    % radius over which a gradient is determined for motion
-        timeToDelete = 10;
+        timeToDelete = 20;
         gridSize = -1:.2:1;
-        zGridSize = -1:.2:1;
+        zGridSize = 0;
         runTime;        % how many seconds the Miabots will run for
-        n_robots = 3;   % number of robots
+        n_robots;   % number of robots
         k1 = 1;         % coefficient for forward velocity in control law
         k2 = 1;         % coefficient for angular velocity in control law
         k3 = 1;         % coefficient for z velocity in control law
@@ -38,9 +38,9 @@ classdef field < handle
     
     methods
         
-        function obj = field()
+        function obj = field(n)
             % generates a new field object
-            
+            obj.n_robots = n;
             % initialize sensors
             for i=1:obj.n_robots
                 obj.robots(i,:) = [0 0 0 0];
@@ -555,7 +555,7 @@ classdef field < handle
             
         end
         
-        function [ commands ] = voronoi_control_law(obj, t, states)
+        function [ waypoints ] = voronoi_control_law(obj, t, states)
             % control law for the voronoi based control law, which is the
             % standard to which the gradient control law is compared
             
@@ -571,60 +571,9 @@ classdef field < handle
             
             % computes the centroid of the voronoi region where each
             % sensors sits
-            C = obj.centroid()
+            C = obj.centroid();
+            waypoints = [C states(:,6)];
             
-            commands = zeros(obj.n_robots,3);
-        
-            for i=1:obj.n_robots
-                
-                % Get current states of the robot, x,y,z,heading, and
-                % velocities
-                x = states(i,1);
-                y = states(i,2);
-                z = states(i,3);
-                v_x = states(i,4);
-                v_y = states(i,5);
-                theta = states(i,6);
-                theta_dot = states(i,7);
-                
-                
-                
-                
-                xgoal = C(i,1);
-                ygoal = C(i,2);
-                zgoal = C(i,3);
-                
-                
-                % angle that the current heading is displaced from desired
-                % heading
-                phi = wrapToPi(atan2(ygoal-y,xgoal-x)-theta);
-                
-                % if statement to determine control laws for angular
-                % velocity
-                if (phi <= pi/2) && (phi > -pi/2)
-                    u_theta = (obj.k2)*sin(phi);
-                else
-                    u_theta = -(obj.k2)*sin(phi);
-                end
-                
-                r = ((xgoal-x)^2+(ygoal-y)^2)^.5; % distance to goal
-                % position
-                
-                
-                
-                % control law for forward velocity
-                u_x = ((obj.k1)*r*cos(phi));
-                
-                u_z = obj.k3*(z-zgoal);
-                % pass forward velocity and angular velocity to the command
-                % matrix
-                commands(i,1) = u_x;
-                commands(i,2) = u_theta;
-                commands(i,3) = u_z;
-                
-                
-                
-            end
             obj.remove(); % removes old measurements
             
             
