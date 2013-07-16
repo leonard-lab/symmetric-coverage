@@ -2,20 +2,20 @@ classdef field < handle
     %Class to run voronoi and gradient based symmetric searchs
     
     properties
-        sigma = .2;    % time constant for spatial separation of measurements
-        tau = .2;       % time constant for temporal separation of measurements
+        sigma = .05;    % time constant for spatial separation of measurements
+        tau = 1;       % time constant for temporal separation of measurements
         mu = .1;        % uncertainty in measurements, a characteristic of the sensors
         gamma = .04;    % radius over which a gradient is determined for motion
-        timeToDelete = 8;
+        timeToDelete = 10;
         gridSize = -1:.2:1;
-        
+        zGridSize = -1:.2:1;
         runTime;        % how many seconds the Miabots will run for
-        n_robots = 9;   % number of robots
-        k1 = 4;         % coefficient for forward velocity in control law
+        n_robots = 3;   % number of robots
+        k1 = 1;         % coefficient for forward velocity in control law
         k2 = 1;         % coefficient for angular velocity in control law
-        k3 = 0;         % coefficient for z velocity in control law
+        k3 = 1;         % coefficient for z velocity in control law
                       % matrix of covariances between measurements
-        radius = .5;    % distance to edge of survey area
+        radius = 2/3;    % distance to edge of survey area
         shape = 'triangle'
         % shape of the boundary area. Currently accepted are circle,
         % square, triangle, and custom.
@@ -25,7 +25,7 @@ classdef field < handle
         % alternates "leaders" every time step to increase speed and force
         % symmetry
         
-        precision = 12; % number of spots considered for goal points
+        precision = 6; % number of spots considered for goal points
         t;              % current time
         tPast = -.04;  % previous time
         D;
@@ -175,8 +175,8 @@ classdef field < handle
                     % matrix
                     commands(i,:) = [u_x u_theta 0];
                     
-               % end
                 end
+                %end
             end
             
             obj.remove();
@@ -228,10 +228,10 @@ classdef field < handle
             obj.D = inv(obj.fieldGen);
             
             % arrays for finding the center of mass of each region
-            densitySums = zeros(11,length(obj.robots(:,1)));
-            sumsx = zeros(11, length(obj.robots(:,1)));
-            sumsy = zeros(11, length(obj.robots(:,1)));
-            sumsz = zeros(11, length(obj.robots(:,1)));
+            densitySums = zeros(length(obj.gridSize),length(obj.robots(:,1)));
+            sumsx = zeros(length(obj.gridSize), length(obj.robots(:,1)));
+            sumsy = zeros(length(obj.gridSize), length(obj.robots(:,1)));
+            sumsz = zeros(length(obj.gridSize), length(obj.robots(:,1)));
             sensors = obj.robots;
             
             parfor u=1:length(obj.gridSize)
@@ -242,7 +242,7 @@ classdef field < handle
                 tempSumsz = zeros(length(sensors(:,1)), 1);
                 
                 for j=obj.gridSize
-                    for z=0
+                    for z=obj.zGridSize
                         % put each point being measured into its region
                         r = ((i - sensors(1,1))^2 + ...
                             (j - sensors(1,2))^2 + ...
@@ -295,23 +295,23 @@ classdef field < handle
                 sumsz(u,:) = tempSumsz;
             end
             
-            sumx = zeros(1,length(obj.sensors(1,:)));
-            sumy = zeros(1,length(obj.sensors(1,:)));
-            sumz = zeros(1,length(obj.sensors(1,:)));
-            
+            sumx = zeros(1,length(obj.robots(:,1)));
+            sumy = zeros(1,length(obj.robots(:,1)));
+            sumz = zeros(1,length(obj.robots(:,1)));
             % total the individual values found inside the parfor loop
-            densitySum = zeros(1,length(obj.sensors(1,:)));
-            h=1:length(obj.sensors(1,:));
-            sumx(h) = sum(sumsx(:,h));
-            sumy(h) = sum(sumsy(:,h));
-            sumz(h) = sum(sumsz(:,h));
-            densitySum(h) = sum(densitySums(:,h));
+            densitySum = zeros(1,length(obj.robots(:,1)));
+
+            index=1:length(obj.robots(:,1));
+            sumx(index) = sum(sumsx(:,index));
+            sumy(index) = sum(sumsy(:,index));
+            sumz(index) = sum(sumsz(:,index));
+            densitySum(index) = sum(densitySums(:,index));
             
-            centroids = zeros(length(obj.sensors(1,:)), 3);
+            centroids = zeros(length(obj.robots(:,1)), 3);
             
             % calculate centroids based on a weighted center of mass
             % equation
-            for i=1:length(obj.sensors(1,:))
+            for i=1:length(obj.robots(:,1))
                 centroids(i,1) = sumx(i) / densitySum(i);
                 centroids(i,2) = sumy(i) / densitySum(i);
                 centroids(i,3) = sumz(i) / densitySum(i);
@@ -327,6 +327,7 @@ classdef field < handle
             
             % conditions for outside sample area, currently set to an
             % equilateral triangle
+            measurements = obj.measurements;
             if strcmp(obj.shape,'triangle')==true
                 if x > sqrt(3)/2 || x < -sqrt(3)/2 || y > (-sqrt(3)*x + 1) || y > (sqrt(3)*x + 1) || y < -.5
                     
@@ -337,27 +338,27 @@ classdef field < handle
                     
                     % for speed, doesn't not compute for measurements far
                     % away from each other spatially or temporally
-                    for i=1:length(obj.measurements(:,1))
-                        if obj.measurements(i,4) > obj.t - 3 * obj.tau
-                            if abs(((obj.measurements(i,1)).^2 ...
-                                    + (obj.measurements(i,2)).^2 + (obj.measurements(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
+                    for i=1:length(measurements(:,1))
+                        if measurements(i,4) > obj.t - 3 * obj.tau
+                            if abs(((measurements(i,1)).^2 ...
+                                    + (measurements(i,2)).^2 + (measurements(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
                                     < 3 * obj.sigma
-                                for j=1:length(obj.measurements(:,1))
-                                    if obj.measurements(j,4) > obj.t - 3 * obj.tau
-                                        if abs(((obj.measurements(j,1)).^2 ...
-                                                + (obj.measurements(j,2)).^2 + (obj.measurements(j,3)).^2).^.5 ...
+                                for j=1:length(measurements(:,1))
+                                    if measurements(j,4) > obj.t - 3 * obj.tau
+                                        if abs(((measurements(j,1)).^2 ...
+                                                + (measurements(j,2)).^2 + (measurements(j,3)).^2).^.5 ...
                                                 - (x.^2 + y.^2)^.5) < 3 ...
                                                 * obj.sigma
                                             
                                             % sums all components of
                                             % certainty
                                             M = M + (exp(-abs(((sqrt((x ...
-                                                - obj.measurements(i,1)).^2 + (y ...
-                                                - obj.measurements(i,2)).^2 + (z - obj.measurements(i,3)).^2) ...
-                                                ./ obj.sigma))) - abs((obj.t - obj.measurements(i,4))...
-                                                ./ obj.tau)) .* obj.D(i,j) .* exp(-abs(((sqrt((obj.measurements(j,1)...
-                                                - x).^2 + (obj.measurements(j,2) - y).^2 + (obj.measurements(j,3) - z).^2)...
-                                                ./ obj.sigma))) - abs(((obj.measurements(j,4)) - obj.t)...
+                                                - measurements(i,1)).^2 + (y ...
+                                                - measurements(i,2)).^2 + (z - measurements(i,3)).^2) ...
+                                                ./ obj.sigma))) - abs((obj.t - measurements(i,4))...
+                                                ./ obj.tau)) .* obj.D(i,j) .* exp(-abs(((sqrt((measurements(j,1)...
+                                                - x).^2 + (measurements(j,2) - y).^2 + (measurements(j,3) - z).^2)...
+                                                ./ obj.sigma))) - abs(((measurements(j,4)) - obj.t)...
                                                 ./ obj.tau)));
                                             
                                         end
@@ -378,31 +379,31 @@ classdef field < handle
                 else
                     M = 0;
                     % compares all measurements to all other measurements
-                    for i=1:length(obj.measurements(:,1))
+                    for i=1:length(measurements(:,1))
                         % for speed, doesn't not compute for measurements far
                         % away from each other spatially or temporally
-                        if obj.measurements(i,4) > obj.t - 2 * obj.tau
-                            if abs(((obj.measurements(i,1)).^2 ...
-                                    + (obj.measurements(i,2)).^2 + (obj.measurements(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
+                        if measurements(i,4) > obj.t - 2 * obj.tau
+                            if abs(((measurements(i,1)).^2 ...
+                                    + (measurements(i,2)).^2 + (measurements(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
                                     < 3 * obj.sigma
-                                for j=1:length(obj.measurements(:,1))
-                                    if obj.measurements(j,4) > obj.t - 2 * obj.tau
-                                        if abs(((obj.measurements(j,1)).^2 ...
-                                                + (obj.measurements(j,2)).^2 + (obj.measurements(j,3)).^2).^.5 ...
+                                for j=1:length(measurements(:,1))
+                                    if measurements(j,4) > obj.t - 2 * obj.tau
+                                        if abs(((measurements(j,1)).^2 ...
+                                                + (measurements(j,2)).^2 + (measurements(j,3)).^2).^.5 ...
                                                 - (x.^2 + y.^2)^.5) < 3 ...
                                                 * obj.sigma
                                             % sums all components of
                                             % certainty
                                             M = M + (exp(-abs(((sqrt((x ...
-                                                - obj.measurements(i,1)).^2 + (y ...
-                                                - obj.measurements(i,2)).^2 + (z - obj.measurements(i,3)).^2) ...
+                                                - measurements(i,1)).^2 + (y ...
+                                                - measurements(i,2)).^2 + (z - measurements(i,3)).^2) ...
                                                 ./ obj.sigma)))...
-                                                - abs((obj.t - obj.measurements(i,4))...
+                                                - abs((obj.t - measurements(i,4))...
                                                 ./ obj.tau)) .* obj.D(i,j) ...
-                                                .* exp(-abs(((sqrt((obj.measurements(j,1)...
-                                                - x).^2 + (obj.measurements(j,2) - y).^2 + (obj.measurements(j,3) - z).^2)...
+                                                .* exp(-abs(((sqrt((measurements(j,1)...
+                                                - x).^2 + (measurements(j,2) - y).^2 + (measurements(j,3) - z).^2)...
                                                 ./ obj.sigma))) ...
-                                                - abs(((obj.measurements(j,4)) - obj.t)...
+                                                - abs(((measurements(j,4)) - obj.t)...
                                                 ./ obj.tau)));
                                             
                                         end
@@ -424,31 +425,76 @@ classdef field < handle
                     M = 0;
                     % compares all measurements to all other measurements
                     
-                    for i=1:length(obj.measurements(:,1))
+                    for i=1:length(measurements(:,1))
                         % for speed, doesn't not compute for measurements far
                         % away from each other spatially or temporally
-                        if obj.measurements(i,4) > obj.t - 2 * obj.tau
-                            if abs(((obj.measurements(i,1)).^2 ...
-                                    + (obj.measurements(i,2)).^2 + (obj.measurements(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
+                        if measurements(i,4) > obj.t - 2 * obj.tau
+                            if abs(((measurements(i,1)).^2 ...
+                                    + (measurements(i,2)).^2 + (measurements(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
                                     < 3 * obj.sigma
-                                for j=1:length(obj.measurements(:,1))
-                                    if obj.measurements(j,4) > obj.t - 2 * obj.tau
-                                        if abs(((obj.measurements(j,1)).^2 ...
-                                                + (obj.measurements(j,2)).^2 + (obj.measurements(j,3)).^2).^.5 ...
+                                for j=1:length(measurements(:,1))
+                                    if measurements(j,4) > obj.t - 2 * obj.tau
+                                        if abs(((measurements(j,1)).^2 ...
+                                                + (measurements(j,2)).^2 + (measurements(j,3)).^2).^.5 ...
                                                 - (x.^2 + y.^2)^.5) < 3 ...
                                                 * obj.sigma
                                             % sums all components of
                                             % certainty
                                             M = M + (exp(-abs(((sqrt((x ...
-                                                - obj.measurements(i,1)).^2 + (y ...
-                                                - obj.measurements(i,2)).^2 + (z - obj.measurements(i,3)).^2) ...
+                                                - measurements(i,1)).^2 + (y ...
+                                                - measurements(i,2)).^2 + (z - measurements(i,3)).^2) ...
                                                 ./ obj.sigma)))...
-                                                - abs((obj.t - obj.measurements(i,4))...
+                                                - abs((obj.t - measurements(i,4))...
                                                 ./ obj.tau)) .* obj.D(i,j) ...
-                                                .* exp(-abs(((sqrt((obj.measurements(j,1)...
-                                                - x).^2 + (obj.measurements(j,2) - y).^2 + (obj.measurements(j,3) - z).^2)...
+                                                .* exp(-abs(((sqrt((measurements(j,1)...
+                                                - x).^2 + (measurements(j,2) - y).^2 + (measurements(j,3) - z).^2)...
                                                 ./ obj.sigma))) ...
-                                                - abs(((obj.measurements(j,4)) - obj.t)...
+                                                - abs(((measurements(j,4)) - obj.t)...
+                                                ./ obj.tau)));
+                                            
+                                        end
+                                        
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+                A = 1 - M;
+                
+            elseif strcmp(obj.shape,'sphere')==true
+                if (x^2 + y^2 + z^2 > obj.radius^2)
+                    
+                    M = 1;
+                else
+                    M = 0;
+                    % compares all measurements to all other measurements
+                    
+                    for i=1:length(measurements(:,1))
+                        % for speed, doesn't not compute for measurements far
+                        % away from each other spatially or temporally
+                        if measurements(i,4) > obj.t - 2 * obj.tau
+                            if abs(((measurements(i,1)).^2 ...
+                                    + (measurements(i,2)).^2 + (measurements(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
+                                    < 3 * obj.sigma
+                                for j=1:length(measurements(:,1))
+                                    if measurements(j,4) > obj.t - 2 * obj.tau
+                                        if abs(((measurements(j,1)).^2 ...
+                                                + (measurements(j,2)).^2 + (measurements(j,3)).^2).^.5 ...
+                                                - (x.^2 + y.^2)^.5) < 3 ...
+                                                * obj.sigma
+                                            % sums all components of
+                                            % certainty
+                                            M = M + (exp(-abs(((sqrt((x ...
+                                                - measurements(i,1)).^2 + (y ...
+                                                - measurements(i,2)).^2 + (z - measurements(i,3)).^2) ...
+                                                ./ obj.sigma)))...
+                                                - abs((obj.t - measurements(i,4))...
+                                                ./ obj.tau)) .* obj.D(i,j) ...
+                                                .* exp(-abs(((sqrt((measurements(j,1)...
+                                                - x).^2 + (measurements(j,2) - y).^2 + (measurements(j,3) - z).^2)...
+                                                ./ obj.sigma))) ...
+                                                - abs(((measurements(j,4)) - obj.t)...
                                                 ./ obj.tau)));
                                             
                                         end
@@ -469,31 +515,31 @@ classdef field < handle
                     M = 0;
                     % compares all measurements to all other measurements
                     
-                    for i=1:length(obj.measurements(:,1))
+                    for i=1:length(measurements(:,1))
                         % for speed, doesn't not compute for measurements far
                         % away from each other spatially or temporally
-                        if obj.measurements(i,4) > obj.t - 2 * obj.tau
-                            if abs(((obj.measurements(i,1)).^2 ...
-                                    + (obj.measurements(i,2)).^2 + (obj.measurements(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
+                        if measurements(i,4) > obj.t - 2 * obj.tau
+                            if abs(((measurements(i,1)).^2 ...
+                                    + (measurements(i,2)).^2 + (measurements(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
                                     < 3 * obj.sigma
-                                for j=1:length(obj.measurements(:,1))
-                                    if obj.measurements(j,4) > obj.t - 2 * obj.tau
-                                        if abs(((obj.measurements(j,1)).^2 ...
-                                                + (obj.measurements(j,2)).^2 + (obj.measurements(j,3)).^2).^.5 ...
+                                for j=1:length(measurements(:,1))
+                                    if measurements(j,4) > obj.t - 2 * obj.tau
+                                        if abs(((measurements(j,1)).^2 ...
+                                                + (measurements(j,2)).^2 + (measurements(j,3)).^2).^.5 ...
                                                 - (x.^2 + y.^2)^.5) < 3 ...
                                                 * obj.sigma
                                             % sums all components of
                                             % certainty
                                             M = M + (exp(-abs(((sqrt((x ...
-                                                - obj.measurements(i,1)).^2 + (y ...
-                                                - obj.measurements(i,2)).^2 + (z - obj.measurements(i,3)).^2) ...
+                                                - measurements(i,1)).^2 + (y ...
+                                                - measurements(i,2)).^2 + (z - measurements(i,3)).^2) ...
                                                 ./ obj.sigma)))...
-                                                - abs((obj.t - obj.measurements(i,4))...
+                                                - abs((obj.t - measurements(i,4))...
                                                 ./ obj.tau)) .* obj.D(i,j) ...
-                                                .* exp(-abs(((sqrt((obj.measurements(j,1)...
-                                                - x).^2 + (obj.measurements(j,2) - y).^2 + (obj.measurements(j,3) - z).^2)...
+                                                .* exp(-abs(((sqrt((measurements(j,1)...
+                                                - x).^2 + (measurements(j,2) - y).^2 + (measurements(j,3) - z).^2)...
                                                 ./ obj.sigma))) ...
-                                                - abs(((obj.measurements(j,4)) - obj.t)...
+                                                - abs(((measurements(j,4)) - obj.t)...
                                                 ./ obj.tau)));
                                             
                                         end
@@ -525,10 +571,10 @@ classdef field < handle
             
             % computes the centroid of the voronoi region where each
             % sensors sits
-            C = obj.centroid();
+            C = obj.centroid()
             
             commands = zeros(obj.n_robots,3);
-            
+        
             for i=1:obj.n_robots
                 
                 % Get current states of the robot, x,y,z,heading, and
@@ -625,7 +671,7 @@ classdef field < handle
                     % if two spots tie, pick the first going counterclockwise
                     % for the current heading
                 elseif bestTemp(index) == best
-                    'yes'
+                    
                     % theta1 and theta2 are the angles from the heading
                     if Ftemp(index,1) == 0
                         theta1 = wrapTo2Pi(pi/2 - theta);
@@ -648,7 +694,7 @@ classdef field < handle
             
         end
         
-        function [A] = timeUncertaintyCalculate(obj, x, y, t, tempMeas, D)
+        function [A] = uncertaintyCalculate(obj, x, y, t, tempMeas, D)
             % Calculates the net uncertainty field at a given point in
             % time, used within timeUncertaintyField
             M = 0;
@@ -701,7 +747,7 @@ classdef field < handle
                         
                         A(index) = 1;
                     else
-                        A(index) = obj.timeUncertaintyCalculate(x(index), y(index), t, tempMeas, D);
+                        A(index) = obj.uncertaintyCalculate(x(index), y(index), t, tempMeas, D);
                     end
                 end
                 % conditions for a circular region of search
@@ -714,7 +760,7 @@ classdef field < handle
                     if (x(index)^2 + y(index)^2)^.5 > obj.radius
                         A(index) = 1;
                     else
-                        A(index) = obj.timeUncertaintyCalculate(x(index), y(index), t, tempMeas, D);
+                        A(index) = obj.uncertaintyCalculate(x(index), y(index), t, tempMeas, D);
                     end
                 end
                 
@@ -728,7 +774,7 @@ classdef field < handle
                     if x(index) > obj.radius || x(index) < - obj.radius || y(index) > obj.radius || y(index) < -obj.radius
                         A(index) = 1;
                     else
-                        A(index) = obj.timeUncertaintyCalculate(x(index), y(index), t, tempMeas, D);
+                        A(index) = obj.uncertaintyCalculate(x(index), y(index), t, tempMeas, D);
                     end
                 end
                 
@@ -742,7 +788,7 @@ classdef field < handle
                     if inpolygon(x(index),y(index),obj.polygon(:,1),obj.polygon(:,2)) == 0
                         A(index) = 1;
                     else
-                        A(index) = obj.timeUncertaintyCalculate(x(index), y(index), t, tempMeas, D);
+                        A(index) = obj.uncertaintyCalculate(x(index), y(index), t, tempMeas, D);
                         
                     end
                 end
