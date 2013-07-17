@@ -1,5 +1,7 @@
 % this script will run the voronoi based control law
 clear all
+
+% select initial conditions for the robots, some examples are given here
 %init = [sqrt(3)/20 -.05 0 0; sqrt(3)/20 .05 0 pi/3; 0 .1 0 2*pi/3; -sqrt(3)/20 .05 0 pi; -sqrt(3)/20 -.05 0 4*pi/3; 0 -.1 0 5*pi/3];
 %init = [0 .5 0 0; 0 -.5 0 pi];
 init = [sqrt(3)/20 -.05 0 0; -sqrt(3)/20 -.05 0 -2*pi/3; 0 .1 0 2*pi/3];
@@ -7,16 +9,24 @@ init = [sqrt(3)/20 -.05 0 0; -sqrt(3)/20 -.05 0 -2*pi/3; 0 .1 0 2*pi/3];
 %init = .5 .* [ 0.5000 0 0 0; 0.3830 -0.3214 0 2*pi/9; 0.0868 -0.4924 0 4*pi/9; 
 %    -0.2500 -0.4330 0 6*pi/9; -0.4698 -0.1710 0 8*pi/9; -0.4698 0.1710 0 10*pi/9
 %    -0.2500 0.4330 0 12*pi/9; 0.0868 0.4924 0 14*pi/9; 0.3830 0.3214 0 16*pi/9];
+
+% initialize the field object
 S = field(length(init(:,1)));
 %close all
+
+% can adjust shape of survey area, default is triangular, with sphere,
+% circle, square, and custom being other options
 S.shape = 'sphere';
+
+% if shape is 'custom' polygon represents the vertices of the shape
 %S.polygon = [1 1; -1 1; -1 -1; 1 -1; 1 1];
 %S.polygon = S.radius * [1.5 .5*sqrt(3); 0 sqrt(3); -1.5 .5*sqrt(3); -1.5 -.5*sqrt(3); 0 -sqrt(3); 1.5 -.5*sqrt(3); 1.5 .5*sqrt(3)];
 %S.polygon = [0 1; 1/sqrt(12) .5; sqrt(3)/2 .5; sqrt(3)/3 0; sqrt(3)/2 -.5;
 %    1/sqrt(12) -.5; 0 -1; -1/sqrt(12) -.5; -sqrt(3)/2 -.5; -sqrt(3)/3 0;
 %    -sqrt(3)/2 .5; -1/sqrt(12) .5; 0 1];
-S.runspeed = 'slow';
-S.runTime = 2;
+
+S.runTime = 20;
+
 if matlabpool('size') == 0 % checking to see if my pool is already open
     matlabpool open 2 % can do more on computer with more cores
 end
@@ -33,7 +43,7 @@ m.start
 
 %m.shutdown()
 %%
-
+% plots the position within the shape, and the shape itself
 figure
 col=hsv(S.n_robots);
 for i=1:S.n_robots
@@ -55,27 +65,27 @@ if strcmp(S.shape,'circle') == true
     x=S.radius*cos(angle);
     y=S.radius*sin(angle);
     plot3(x,y);
-
-    
 end
 
 if strcmp(S.shape,'sphere') == true
     hold on
-    angle=0:0.1:2*pi;
+angle=0:0.1:2*pi;
     x=S.radius*cos(angle);
     y=S.radius*sin(angle);
     plot3(x,y,zeros(length(x)));
     hold on
     plot3(zeros(length(x)),x,y);
     hold on
-    plot3(y,zeros(length(x)),x);
+    plot3(y,zeros(length(x)),x);    
 end
+
 if strcmp(S.shape,'square') == true
     line([-S.radius -S.radius], [-S.radius S.radius]);
     line([-S.radius S.radius], [-S.radius -S.radius]);
     line([S.radius S.radius], [-S.radius S.radius]);
     line([S.radius -S.radius], [S.radius S.radius]);
 end
+
 if strcmp(S.shape,'custom') == true
     hold on
     plot(S.polygon(:,1),S.polygon(:,2));
@@ -83,7 +93,7 @@ end
 legend('Robot 1', 'Robot 2');
 
 
-
+% plots x vs t, y vs t, z vs t, and theta vs t
 figure
 for i=1:S.n_robots
     hold on

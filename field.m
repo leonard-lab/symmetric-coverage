@@ -2,20 +2,20 @@ classdef field < handle
     %Class to run voronoi and gradient based symmetric searchs
     
     properties
-        sigma = .05;    % time constant for spatial separation of measurements
-        tau = .08;       % time constant for temporal separation of measurements
+        sigma = .2;    % time constant for spatial separation of measurements
+        tau = .5;       % time constant for temporal separation of measurements
         mu = .1;        % uncertainty in measurements, a characteristic of the sensors
-        gamma = .04;    % radius over which a gradient is determined for motion
-        timeToDelete = 4;
+        gamma = .08;    % radius over which a gradient is determined for motion
+        timeToDelete = 7;
         gridSize = -1:.2:1;
         zGridSize = 0;
         runTime;        % how many seconds the Miabots will run for
         n_robots;   % number of robots
-        k1 = 8;         % coefficient for forward velocity in control law
+        k1 = 2;         % coefficient for forward velocity in control law
         k2 = 1;         % coefficient for angular velocity in control law
         k3 = 1;         % coefficient for z velocity in control law
                       % matrix of covariances between measurements
-        radius = 2/3;    % distance to edge of survey area
+        radius = 1;    % distance to edge of survey area
         shape = 'triangle'
         % shape of the boundary area. Currently accepted are circle,
         % square, triangle, and custom.
@@ -25,7 +25,7 @@ classdef field < handle
         % alternates "leaders" every time step to increase speed and force
         % symmetry
         
-        precision = 6; % number of spots considered for goal points
+        precision = 12; % number of spots considered for goal points
         t;              % current time
         tPast = -.04;  % previous time
         D;
@@ -62,6 +62,9 @@ classdef field < handle
                 
             end
             
+            obj.D = zeros(length(obj.measurements(:,1)) + 1, length(obj.measurements(:,1)) + 1);
+            obj.D(1:end-1,1:end-1) = obj.fieldGen();
+            
             % runs the 'fast' version of the control law
             if strcmp(obj.runspeed,'fast')==true
                 r = mod(obj.q,obj.n_robots);
@@ -73,7 +76,7 @@ classdef field < handle
                 
                 % rotates goal point to other robots
                 for i=1:obj.n_robots
-                    Goals(i,:) = GoalPoint*[cos(-2*(i-r-1)*pi/(obj.n_robots)) sin(-2*(i-r-1)*pi/(obj.n_robots)); -sin(-2*(i-r-1)*pi/(obj.n_robots)) cos(-2*(i-r-1)*pi/(obj.n_robots))];
+                    Goals(i,:) = GoalPoint(1:2)*[cos(-2*(i-r-1)*pi/(obj.n_robots)) sin(-2*(i-r-1)*pi/(obj.n_robots)); -sin(-2*(i-r-1)*pi/(obj.n_robots)) cos(-2*(i-r-1)*pi/(obj.n_robots))];
                 end
                 
                 
@@ -97,6 +100,7 @@ classdef field < handle
                     
                     xgoal = Goals(i,1);
                     ygoal = Goals(i,2);
+                    zgoal = 0;
                     
                     
                     % angle that the current heading is displaced from desired
@@ -119,33 +123,35 @@ classdef field < handle
                     % control law for forward velocity
                     u_x = ((obj.k1)*r*cos(phi));
                     
+                    u_z = (obj.k3)*(zgoal-z);
+                    
                     % pass forward velocity and angular velocity to the command
                     % matrix
                     commands(i,1) = u_x;
                     commands(i,2) = u_theta;
+                    commands(i,3) = u_z;
                     
                     
                 end
                 
             elseif strcmp(obj.runspeed,'average')==true
                 
-                Goals = zeros(length(obj.n_robots),2);
+                Goals = zeros(length(obj.n_robots),3);
                 parfor i=1:obj.n_robots
                     Goals(i,:) = obj.bestDirection(obj.robots(i,:), states(i,6));
                 end
              
                 for i=1:obj.n_robots
-                    Goals(i,:) = Goals(i,:)*[cos(2*(i-1)*pi/(obj.n_robots)) sin(2*(i-1)*pi/(obj.n_robots)); -sin(2*(i-1)*pi/(obj.n_robots)) cos(2*(i-1)*pi/(obj.n_robots))];
+                    Goals(i,1:2) = Goals(i,1:2)*[cos(2*(i-1)*pi/(obj.n_robots)) sin(2*(i-1)*pi/(obj.n_robots)); -sin(2*(i-1)*pi/(obj.n_robots)) cos(2*(i-1)*pi/(obj.n_robots))];
                 end
                 Goal = [sum(Goals(:,1))/obj.n_robots sum(Goals(:,2))/obj.n_robots];
             
                 for i=1:obj.n_robots
-                    Goals(i,:) = Goal*[cos(-2*(i-1)*pi/(obj.n_robots)) sin(-2*(i-1)*pi/(obj.n_robots)); -sin(-2*(i-1)*pi/(obj.n_robots)) cos(-2*(i-1)*pi/(obj.n_robots))];
+                    Goals(i,1:2) = Goal*[cos(-2*(i-1)*pi/(obj.n_robots)) sin(-2*(i-1)*pi/(obj.n_robots)); -sin(-2*(i-1)*pi/(obj.n_robots)) cos(-2*(i-1)*pi/(obj.n_robots))];
                 end
                 
                 
                 commands = zeros(obj.n_robots,3);
-                obj.q = obj.q + 1;
                 
                 % use the goal points to determine commands for u_x and u_theta
                 for i=1:obj.n_robots
@@ -164,7 +170,7 @@ classdef field < handle
                     
                     xgoal = Goals(i,1);
                     ygoal = Goals(i,2);
-                    
+                    zgoal = 0;
                     
                     % angle that the current heading is displaced from desired
                     % heading
@@ -186,11 +192,12 @@ classdef field < handle
                     % control law for forward velocity
                     u_x = ((obj.k1)*r*cos(phi));
                     
+                    u_z = (obj.k3)*(zgoal-z);
                     % pass forward velocity and angular velocity to the command
                     % matrix
                     commands(i,1) = u_x;
                     commands(i,2) = u_theta;
-                    
+                    commands(i,3) = u_z;                    
                     
                 end
                 
@@ -200,9 +207,9 @@ classdef field < handle
                 % calculates each robot individually, per the actual control
                 % law
                 parfor i=1:obj.n_robots
-                   %if t < .04
-                   %    commands(i,:) = [.2 0 0];
-                   %else
+                   if t < .04
+                       commands(i,:) = [.2 0 0];
+                   else
                     Goals = obj.bestDirection(obj.robots(i,:), states(i,6));
                     % Get current states of the robot, x,y,z,heading, and
                     % velocities
@@ -217,6 +224,7 @@ classdef field < handle
                     
                     xgoal = Goals(1);
                     ygoal = Goals(2);
+                    zgoal = Goals(3);
                     
                     
                     % angle that the current heading is displaced from desired
@@ -239,12 +247,13 @@ classdef field < handle
                     % control law for forward velocity
                     u_x = ((obj.k1)*r*cos(phi));
                     
+                    u_z = (obj.k3)*(zgoal-z);
                     % pass forward velocity and angular velocity to the command
                     % matrix
-                    commands(i,:) = [u_x u_theta 0];
+                    commands(i,:) = [u_x u_theta u_z];
                     
                 end
-                %end
+                end
             end
             
             obj.remove();
@@ -389,53 +398,56 @@ classdef field < handle
             
         end
         
+        function [ M ] = uncertainty(obj, x, y, z, measurements)
+            M = 0;
+            
+            
+            % for speed, doesn't not compute for measurements far
+            % away from each other spatially or temporally
+            for i=1:length(measurements(:,1))
+                if measurements(i,4) > obj.t - 3 * obj.tau
+                    if abs(((measurements(i,1)).^2 ...
+                            + (measurements(i,2)).^2 + (measurements(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
+                            < 4 * obj.sigma
+                        for j=1:length(measurements(:,1))
+                            if measurements(j,4) > obj.t - 3 * obj.tau
+                                if abs(((measurements(j,1)).^2 ...
+                                        + (measurements(j,2)).^2 + (measurements(j,3)).^2).^.5 ...
+                                        - (x.^2 + y.^2)^.5) < 4 * obj.sigma
+                                    
+                                    % sums all components of
+                                    % certainty
+                                    M = M + (exp(-abs(((sqrt((x ...
+                                        - measurements(i,1)).^2 + (y ...
+                                        - measurements(i,2)).^2 + (z - measurements(i,3)).^2) ...
+                                        ./ obj.sigma))) - abs((obj.t - measurements(i,4))...
+                                        ./ obj.tau)) .* obj.D(i,j) .* exp(-abs(((sqrt((measurements(j,1)...
+                                        - x).^2 + (measurements(j,2) - y).^2 + (measurements(j,3) - z).^2)...
+                                        ./ obj.sigma))) - abs(((measurements(j,4)) - obj.t)...
+                                        ./ obj.tau)));
+                                    
+                                end
+                                
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
         function [ A ] = uncertaintyField(obj, x, y, z)
             % generates the uncertainty at a point in space at the current
             % time, used by the voronoi control law
             
             % conditions for outside sample area, currently set to an
-            % equilateral triangle
+                % equilateral triangle
             measurements = obj.measurements;
             if strcmp(obj.shape,'triangle')==true
                 if x > sqrt(3)/2 || x < -sqrt(3)/2 || y > (-sqrt(3)*x + 1) || y > (sqrt(3)*x + 1) || y < -.5
                     
                     M = 1;
                 else
-                    M = 0;
-                    
-                    
-                    % for speed, doesn't not compute for measurements far
-                    % away from each other spatially or temporally
-                    for i=1:length(measurements(:,1))
-                        if measurements(i,4) > obj.t - 3 * obj.tau
-                            if abs(((measurements(i,1)).^2 ...
-                                    + (measurements(i,2)).^2 + (measurements(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
-                                    < 3 * obj.sigma
-                                for j=1:length(measurements(:,1))
-                                    if measurements(j,4) > obj.t - 3 * obj.tau
-                                        if abs(((measurements(j,1)).^2 ...
-                                                + (measurements(j,2)).^2 + (measurements(j,3)).^2).^.5 ...
-                                                - (x.^2 + y.^2)^.5) < 3 ...
-                                                * obj.sigma
-                                            
-                                            % sums all components of
-                                            % certainty
-                                            M = M + (exp(-abs(((sqrt((x ...
-                                                - measurements(i,1)).^2 + (y ...
-                                                - measurements(i,2)).^2 + (z - measurements(i,3)).^2) ...
-                                                ./ obj.sigma))) - abs((obj.t - measurements(i,4))...
-                                                ./ obj.tau)) .* obj.D(i,j) .* exp(-abs(((sqrt((measurements(j,1)...
-                                                - x).^2 + (measurements(j,2) - y).^2 + (measurements(j,3) - z).^2)...
-                                                ./ obj.sigma))) - abs(((measurements(j,4)) - obj.t)...
-                                                ./ obj.tau)));
-                                            
-                                        end
-                                        
-                                    end
-                                end
-                            end
-                        end
-                    end
+                    M = obj.uncertainty(x,y,z,measurements);   
                 end
                 A = 1 - M;
                 
@@ -445,42 +457,7 @@ classdef field < handle
                     
                     M = 1;
                 else
-                    M = 0;
-                    % compares all measurements to all other measurements
-                    for i=1:length(measurements(:,1))
-                        % for speed, doesn't not compute for measurements far
-                        % away from each other spatially or temporally
-                        if measurements(i,4) > obj.t - 2 * obj.tau
-                            if abs(((measurements(i,1)).^2 ...
-                                    + (measurements(i,2)).^2 + (measurements(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
-                                    < 3 * obj.sigma
-                                for j=1:length(measurements(:,1))
-                                    if measurements(j,4) > obj.t - 2 * obj.tau
-                                        if abs(((measurements(j,1)).^2 ...
-                                                + (measurements(j,2)).^2 + (measurements(j,3)).^2).^.5 ...
-                                                - (x.^2 + y.^2)^.5) < 3 ...
-                                                * obj.sigma
-                                            % sums all components of
-                                            % certainty
-                                            M = M + (exp(-abs(((sqrt((x ...
-                                                - measurements(i,1)).^2 + (y ...
-                                                - measurements(i,2)).^2 + (z - measurements(i,3)).^2) ...
-                                                ./ obj.sigma)))...
-                                                - abs((obj.t - measurements(i,4))...
-                                                ./ obj.tau)) .* obj.D(i,j) ...
-                                                .* exp(-abs(((sqrt((measurements(j,1)...
-                                                - x).^2 + (measurements(j,2) - y).^2 + (measurements(j,3) - z).^2)...
-                                                ./ obj.sigma))) ...
-                                                - abs(((measurements(j,4)) - obj.t)...
-                                                ./ obj.tau)));
-                                            
-                                        end
-                                        
-                                    end
-                                end
-                            end
-                        end
-                    end
+                    M = obj.uncertainty(x,y,z,measurements);
                 end
                 A = 1 - M;
                 
@@ -490,43 +467,7 @@ classdef field < handle
                     
                     M = 1;
                 else
-                    M = 0;
-                    % compares all measurements to all other measurements
-                    
-                    for i=1:length(measurements(:,1))
-                        % for speed, doesn't not compute for measurements far
-                        % away from each other spatially or temporally
-                        if measurements(i,4) > obj.t - 2 * obj.tau
-                            if abs(((measurements(i,1)).^2 ...
-                                    + (measurements(i,2)).^2 + (measurements(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
-                                    < 3 * obj.sigma
-                                for j=1:length(measurements(:,1))
-                                    if measurements(j,4) > obj.t - 2 * obj.tau
-                                        if abs(((measurements(j,1)).^2 ...
-                                                + (measurements(j,2)).^2 + (measurements(j,3)).^2).^.5 ...
-                                                - (x.^2 + y.^2)^.5) < 3 ...
-                                                * obj.sigma
-                                            % sums all components of
-                                            % certainty
-                                            M = M + (exp(-abs(((sqrt((x ...
-                                                - measurements(i,1)).^2 + (y ...
-                                                - measurements(i,2)).^2 + (z - measurements(i,3)).^2) ...
-                                                ./ obj.sigma)))...
-                                                - abs((obj.t - measurements(i,4))...
-                                                ./ obj.tau)) .* obj.D(i,j) ...
-                                                .* exp(-abs(((sqrt((measurements(j,1)...
-                                                - x).^2 + (measurements(j,2) - y).^2 + (measurements(j,3) - z).^2)...
-                                                ./ obj.sigma))) ...
-                                                - abs(((measurements(j,4)) - obj.t)...
-                                                ./ obj.tau)));
-                                            
-                                        end
-                                        
-                                    end
-                                end
-                            end
-                        end
-                    end
+                   M = obj.uncertainty(x,y,z,measurements);
                 end
                 A = 1 - M;
                 
@@ -535,43 +476,7 @@ classdef field < handle
                     
                     M = 1;
                 else
-                    M = 0;
-                    % compares all measurements to all other measurements
-                    
-                    for i=1:length(measurements(:,1))
-                        % for speed, doesn't not compute for measurements far
-                        % away from each other spatially or temporally
-                        if measurements(i,4) > obj.t - 2 * obj.tau
-                            if abs(((measurements(i,1)).^2 ...
-                                    + (measurements(i,2)).^2 + (measurements(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
-                                    < 3 * obj.sigma
-                                for j=1:length(measurements(:,1))
-                                    if measurements(j,4) > obj.t - 2 * obj.tau
-                                        if abs(((measurements(j,1)).^2 ...
-                                                + (measurements(j,2)).^2 + (measurements(j,3)).^2).^.5 ...
-                                                - (x.^2 + y.^2)^.5) < 3 ...
-                                                * obj.sigma
-                                            % sums all components of
-                                            % certainty
-                                            M = M + (exp(-abs(((sqrt((x ...
-                                                - measurements(i,1)).^2 + (y ...
-                                                - measurements(i,2)).^2 + (z - measurements(i,3)).^2) ...
-                                                ./ obj.sigma)))...
-                                                - abs((obj.t - measurements(i,4))...
-                                                ./ obj.tau)) .* obj.D(i,j) ...
-                                                .* exp(-abs(((sqrt((measurements(j,1)...
-                                                - x).^2 + (measurements(j,2) - y).^2 + (measurements(j,3) - z).^2)...
-                                                ./ obj.sigma))) ...
-                                                - abs(((measurements(j,4)) - obj.t)...
-                                                ./ obj.tau)));
-                                            
-                                        end
-                                        
-                                    end
-                                end
-                            end
-                        end
-                    end
+                   M = obj.uncertainty(x,y,z,measurements);
                 end
                 A = 1 - M;
                 
@@ -580,43 +485,7 @@ classdef field < handle
                 if inpolygon(x,y,obj.polygon(:,1),obj.polygon(:,2)) == 0
                     M = 1;
                 else
-                    M = 0;
-                    % compares all measurements to all other measurements
-                    
-                    for i=1:length(measurements(:,1))
-                        % for speed, doesn't not compute for measurements far
-                        % away from each other spatially or temporally
-                        if measurements(i,4) > obj.t - 2 * obj.tau
-                            if abs(((measurements(i,1)).^2 ...
-                                    + (measurements(i,2)).^2 + (measurements(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
-                                    < 3 * obj.sigma
-                                for j=1:length(measurements(:,1))
-                                    if measurements(j,4) > obj.t - 2 * obj.tau
-                                        if abs(((measurements(j,1)).^2 ...
-                                                + (measurements(j,2)).^2 + (measurements(j,3)).^2).^.5 ...
-                                                - (x.^2 + y.^2)^.5) < 3 ...
-                                                * obj.sigma
-                                            % sums all components of
-                                            % certainty
-                                            M = M + (exp(-abs(((sqrt((x ...
-                                                - measurements(i,1)).^2 + (y ...
-                                                - measurements(i,2)).^2 + (z - measurements(i,3)).^2) ...
-                                                ./ obj.sigma)))...
-                                                - abs((obj.t - measurements(i,4))...
-                                                ./ obj.tau)) .* obj.D(i,j) ...
-                                                .* exp(-abs(((sqrt((measurements(j,1)...
-                                                - x).^2 + (measurements(j,2) - y).^2 + (measurements(j,3) - z).^2)...
-                                                ./ obj.sigma))) ...
-                                                - abs(((measurements(j,4)) - obj.t)...
-                                                ./ obj.tau)));
-                                            
-                                        end
-                                        
-                                    end
-                                end
-                            end
-                        end
-                    end
+                    M = obj.uncertainty(x,y,z,measurements);
                 end
                 A = 1 - M;
             end
@@ -653,14 +522,10 @@ classdef field < handle
             
             best = Inf; % tracks what direction would bring the most certainty
             
-            % set all of the covariance field except for the sensor being
-            % guessed
-            C = zeros(length(obj.measurements(:,1)) + 1, length(obj.measurements(:,1)) + 1);
-            C(1:end-1,1:end-1) = obj.fieldGen();
-            
+
             % array of angles to be checked
             angle=(theta+pi/(.5*obj.precision)):pi/(.5*obj.precision):(2*pi+theta);
-            Ftemp = zeros(length(angle), 2);
+            Ftemp = zeros(length(angle), 3);
             bestTemp = zeros(length(angle), 1);
             dt = obj.t - obj.tPast; % we assume timesteps are roughly equal and use this for the future step
             
@@ -669,13 +534,15 @@ classdef field < handle
                 parfor index=1:length(angle)
                     i = obj.gamma * cos(angle(index));
                     j = obj.gamma * sin(angle(index));
-                    [Ftemp(index, :),bestTemp(index)] = locationTest(obj, robot, i, j, theta, C, dt);
+                    k = 0;
+                    [Ftemp(index, :),bestTemp(index)] = locationTest(obj, robot, i, j, k, theta, dt);
                 end
             else
                 for index=1:length(angle)
                     i = obj.gamma * cos(angle(index));
                     j = obj.gamma * sin(angle(index));
-                    [Ftemp(index, :),bestTemp(index)] = locationTest(obj, robot, i, j, theta, C, dt);
+                    k = 0;
+                    [Ftemp(index, :),bestTemp(index)] = locationTest(obj, robot, i, j, k, theta, dt);
                 end
             end
             
@@ -711,36 +578,36 @@ classdef field < handle
             
         end
         
-        function [A] = uncertaintyCalculate(obj, x, y, t, tempMeas, D)
+        function [ A ] = uncertaintyCalculate(obj, x, y, z, t, tempMeas, D)
             % Calculates the net uncertainty field at a given point in
             % time, used within timeUncertaintyField
             M = 0;
             
             % compares all measurements to all other measurements
             for i=1:length(tempMeas(:,1))
-                %if abs(((tempMeas(i,1)).^2 ...
-                %                    + (tempMeas(i,2)).^2 + (tempMeas(i,3)).^2).^.5 - (x.^2 + y.^2).^.5) ...
-                %                    < 3 * obj.sigma
+                if abs(((tempMeas(i,1)).^2 + (tempMeas(i,2)).^2 ...
+                        + (tempMeas(i,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
+                        < 5 * obj.sigma
                 for j=1:length(tempMeas(:,1))
-                %    if abs(((tempMeas(j,1)).^2 ...
-                %                    + (tempMeas(j,2)).^2 + (tempMeas(j,3)).^2).^.5 - (x.^2 + y.^2).^.5) ...
-                %                    < 3 * obj.sigma
+                    if abs(((tempMeas(j,1)).^2 + (tempMeas(j,2)).^2 ...
+                        + (tempMeas(j,3)).^2).^.5 - (x.^2 + y.^2 + z.^2).^.5) ...
+                        < 5 * obj.sigma
                     % sums all components of certainty
                     M = M + (exp(-abs(((sqrt((x ...
                         - tempMeas(i,1)).^2 + (y ...
-                        - tempMeas(i,2)).^2) ...
+                        - tempMeas(i,2)).^2 + (z - tempMeas(i,3)).^2) ...
                         ./ obj.sigma)))...
                         - abs((t - tempMeas(i,4))...
                         ./ obj.tau)) .* D(i,j) ...
                         .* exp(-abs(((sqrt((tempMeas(j,1)...
-                        - x).^2 + (tempMeas(j,2) - y).^2)...
+                        - x).^2 + (tempMeas(j,2) - y).^2 + (tempMeas(j,3) - z).^2)...
                         ./ obj.sigma))) ...
                         - abs(((tempMeas(j,4)) - t)...
                         ./ obj.tau)));
                     
                     end
-               % end
-               % end
+                end
+                end
                 
             end
             
@@ -748,7 +615,7 @@ classdef field < handle
             A = 1 - M;
         end
         
-        function [ A ] = timeUncertaintyField(obj, x, y, t, tempMeas, D)
+        function [ A ] = timeUncertaintyField(obj, x, y, z, t, tempMeas, D)
             % generates the uncertainty at a given place in space and time,
             % used in the gradient control law
             
@@ -764,7 +631,7 @@ classdef field < handle
                         
                         A(index) = 1;
                     else
-                        A(index) = obj.uncertaintyCalculate(x(index), y(index), t, tempMeas, D);
+                        A(index) = obj.uncertaintyCalculate(x(index), y(index), z(index), t, tempMeas, D);
                     end
                 end
                 % conditions for a circular region of search
@@ -777,7 +644,20 @@ classdef field < handle
                     if (x(index)^2 + y(index)^2)^.5 > obj.radius
                         A(index) = 1;
                     else
-                        A(index) = obj.uncertaintyCalculate(x(index), y(index), t, tempMeas, D);
+                        A(index) = obj.uncertaintyCalculate(x(index), y(index), z(index), t, tempMeas, D);
+                    end
+                end
+                
+            elseif strcmp(obj.shape,'sphere') == true
+                A = zeros(1,length(x));
+                
+                %conditions for outside sample area
+                for index=1:length(x)
+                    
+                    if (x(index)^2 + y(index)^2 + z(index)^2)^.5 > obj.radius
+                        A(index) = 1;
+                    else
+                        A(index) = obj.uncertaintyCalculate(x(index), y(index), z(index), t, tempMeas, D);
                     end
                 end
                 
@@ -791,9 +671,10 @@ classdef field < handle
                     if x(index) > obj.radius || x(index) < - obj.radius || y(index) > obj.radius || y(index) < -obj.radius
                         A(index) = 1;
                     else
-                        A(index) = obj.uncertaintyCalculate(x(index), y(index), t, tempMeas, D);
+                        A(index) = obj.uncertaintyCalculate(x(index), y(index), z(index), t, tempMeas, D);
                     end
                 end
+                
                 
                 % conditions for a custom region of search
             elseif strcmp(obj.shape,'custom') == true
@@ -805,48 +686,49 @@ classdef field < handle
                     if inpolygon(x(index),y(index),obj.polygon(:,1),obj.polygon(:,2)) == 0
                         A(index) = 1;
                     else
-                        A(index) = obj.uncertaintyCalculate(x(index), y(index), t, tempMeas, D);
+                        A(index) = obj.uncertaintyCalculate(x(index), y(index), z(index), t, tempMeas, D);
                         
                     end
                 end
             end
         end
         
-        function [ k ] = lineSum(obj, robot, C, theta, tempMeas)
+        function [ k ] = lineSum(obj, robot, theta, tempMeas)
             % finds the sum of the uncertainty field over the region of
             % gamma close points to the gradient field
             
             k = 0;
             
             % completes the covariance based on the trial sensor
-            D = inv(obj.finishCovariance(C, tempMeas));
+            D = inv(obj.finishCovariance(obj.D, tempMeas));
             
             
             angle = (theta+pi/(.5*obj.precision)):pi/(.5*obj.precision):(2*pi+theta);
             v = obj.gamma * cos(angle);
             w = obj.gamma * sin(angle);
+            u = zeros(length(angle));
             
             % checks the new uncertainty at each of the possible points,
             % and returns their sum
-            h = obj.timeUncertaintyField(robot(1) + v,robot(2) + w, tempMeas(end,4), tempMeas, D);
+            h = obj.timeUncertaintyField(robot(1) + v,robot(2) + w, robot(3) + u, tempMeas(end,4), tempMeas, D);
             k = k + sum(h);
             
             
         end
         
-        function [ F, b ] = locationTest(obj, robot, i, j, theta, C, dt)
+        function [ F, b ] = locationTest(obj, robot, i, j, k, theta, dt)
             % tests a point to see how much cumulative uncertainty moving
             % to it would leave behind
             
             % generates a temporary matrix including the new test
             % measurement
-            tempMeas = [obj.measurements; robot(1) + i, robot(2) + j, 0,...
+            tempMeas = [obj.measurements; robot(1) + i, robot(2) + j, robot(3) + k,...
                 robot(4) + dt];
             
             % finds and returns the sum uncertainties at with the new
             % measurement
-            b = obj.lineSum(robot, C, theta, tempMeas);
-            F = [robot(1) + i, robot(2) + j];
+            b = obj.lineSum(robot, theta, tempMeas);
+            F = [robot(1) + i, robot(2) + j, robot(3) + k];
             
             
             
@@ -861,7 +743,7 @@ classdef field < handle
             i=length(tempMeas(:,1));
             for j=1:length(tempMeas(:,1))
                 B(i,j) = exp(-abs(((sqrt((tempMeas(i,1) - tempMeas(j,1))^2 ...
-                    + (tempMeas(i,2) - tempMeas(j,2))^2)/ obj.sigma))) ...
+                    + (tempMeas(i,2) - tempMeas(j,2))^2 + (tempMeas(i,3) - tempMeas(j,3))^2)/ obj.sigma))) ...
                     - abs((tempMeas(i,4) - tempMeas(j,4))/ obj.tau));
                 
             end
@@ -869,7 +751,7 @@ classdef field < handle
             j=length(tempMeas(:,1));
             for i=1:length(tempMeas(:,1))
                 B(i,j) = exp(-abs(((sqrt((tempMeas(i,1) - tempMeas(j,1))^2 ...
-                    + (tempMeas(i,2) - tempMeas(j,2))^2)/ obj.sigma))) ...
+                    + (tempMeas(i,2) - tempMeas(j,2))^2 + (tempMeas(i,3) - tempMeas(j,3))^2)/ obj.sigma))) ...
                     - abs((tempMeas(i,4) - tempMeas(j,4))/ obj.tau));
                 
             end
