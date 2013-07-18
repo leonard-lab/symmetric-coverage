@@ -3,15 +3,15 @@ classdef field < handle
     
     properties
         sigma = .1;    % time constant for spatial separation of measurements
-        tau = 1;       % time constant for temporal separation of measurements
+        tau = .8;       % time constant for temporal separation of measurements
         mu = .1;        % uncertainty in measurements, a characteristic of the sensors
-        gamma = .01;    % radius over which a gradient is determined for motion
+        gamma = .02;    % radius over which a gradient is determined for motion
         timeToDelete = 15;
         gridSize = -1:.2:1;
         zGridSize = 0;
         runTime;        % how many seconds the Miabots will run for
         n_robots;   % number of robots
-        k1 = 10;         % coefficient for forward velocity in control law
+        k1 = 4;         % coefficient for forward velocity in control law
         k2 = 1;         % coefficient for angular velocity in control law
         k3 = 1;         % coefficient for z velocity in control law
         % matrix of covariances between measurements
@@ -25,9 +25,9 @@ classdef field < handle
         % alternates "leaders" every time step to increase speed and force
         % symmetry
         
-        precision = 8; % number of spots considered for goal points
+        precision = 6; % number of spots considered for goal points
         t;              % current time
-        tPast = -.04;  % previous time
+        tPast;   % previous time
         D;
         polygon;        % vertices for a custom shape
         q = 0;          % counter used in fast runspeed to determine leader
@@ -344,7 +344,7 @@ classdef field < handle
             
             obj.remove();
             %states
-            commands
+            %commands
             obj.tPast = obj.t;
             
             
@@ -643,17 +643,12 @@ classdef field < handle
                 elseif bestTemp(index) == best
                     
                     % theta1 and theta2 are the angles from the heading
-                    if Ftemp(index,1) == 0
-                        theta1 = wrapTo2Pi(pi/2 - theta);
-                    else
-                        theta1 = wrapTo2Pi(atan2(Ftemp(index,2),Ftemp(index,1)) - theta);
-                    end
                     
-                    if (F(1)-robot(1)) == 0
-                        theta2 = wrapTo2Pi(pi/2 - theta);
-                    else
-                        theta2 = wrapTo2Pi(atan2(F(2)-robot(2),F(1)-robot(1)) - theta);
-                    end
+                    theta1 = wrapTo2Pi(atan2(Ftemp(index,2),Ftemp(index,1)) - theta);
+                    
+                    
+                    theta2 = wrapTo2Pi(atan2(F(2)-robot(2),F(1)-robot(1)) - theta);
+                    
                     if theta1 < theta2
                         F = Ftemp(index,:);
                         best = bestTemp(index);

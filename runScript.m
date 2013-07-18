@@ -11,7 +11,7 @@ clear all
 %    -0.2500 0.4330 0 12*pi/9; 0.0868 0.4924 0 14*pi/9; 0.3830 0.3214 0 16*pi/9];
 a = transpose(0:8);
 b = zeros(length(a),1);
-init = [.25*cos(2*a*pi/9) -.25*sin(2*a*pi/9) b -2*a*pi/9]
+init = [.25*cos(2*a*pi/9) -.25*sin(2*a*pi/9) b -2*a*pi/9];
 
 % initialize the field object
 S = field(length(init(:,1)));
@@ -35,7 +35,7 @@ S.polygon = [0 1; 1/sqrt(12) .5; sqrt(3)/2 .5; sqrt(3)/3 0; sqrt(3)/2 -.5;
 % 'average_slow' runs at the slow speed, but sends robots to the average of
 % their goal points to protect against noise and jitteriness
 S.runspeed = 'slow';
-S.runTime = 10;
+S.runTime = 20;
 
 if matlabpool('size') == 0 % checking to see if my pool is already open
     matlabpool open % can do more on computer with more cores
