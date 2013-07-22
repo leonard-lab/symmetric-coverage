@@ -2,16 +2,16 @@ classdef field < handle
     %Class to run voronoi and gradient based symmetric searchs
     
     properties
-        sigma = .1;    % time constant for spatial separation of measurements
-        tau = .8;       % time constant for temporal separation of measurements
-        mu = .1;        % uncertainty in measurements, a characteristic of the sensors
-        gamma = .02;    % radius over which a gradient is determined for motion
-        timeToDelete = 15;
+        sigma = .2;    % time constant for spatial separation of measurements
+        tau = 1;       % time constant for temporal separation of measurements
+        mu = .15;        % uncertainty in measurements, a characteristic of the sensors
+        gamma = .04;    % radius over which a gradient is determined for motion
+        timeToDelete = 5;
         gridSize = -1:.2:1;
         zGridSize = 0;
         runTime;        % how many seconds the Miabots will run for
         n_robots;   % number of robots
-        k1 = 4;         % coefficient for forward velocity in control law
+        k1 = 2;         % coefficient for forward velocity in control law
         k2 = 1;         % coefficient for angular velocity in control law
         k3 = 1;         % coefficient for z velocity in control law
         % matrix of covariances between measurements
@@ -27,7 +27,7 @@ classdef field < handle
         
         precision = 6; % number of spots considered for goal points
         t;              % current time
-        tPast;   % previous time
+        tPast = -.04;          % previous time
         D;
         polygon;        % vertices for a custom shape
         q = 0;          % counter used in fast runspeed to determine leader
@@ -292,6 +292,9 @@ classdef field < handle
                 
                 % calculates each robot individually, per the actual control
                 % law
+                
+                %Goals = obj.bestDirection(states, states(6));
+                %Goals = obj.bestDirection(obj.robots, states(:,6));
                 parfor i=1:obj.n_robots
                     if t < .04
                         commands(i,:) = [.2 0 0];
@@ -602,61 +605,71 @@ classdef field < handle
             
         end
         
-        function [ F ] = bestDirection(obj, robot, theta)
+        function [ F ] = bestDirection(obj, robots, theta)
             % used in the gradient control law, determines what direction
             % the robot should move in
             
-            best = Inf; % tracks what direction would bring the most certainty
+            best = Inf(length(robots(:,1)),1); % tracks what direction would bring the most certainty
             
             
             % array of angles to be checked
             angle=(theta+pi/(.5*obj.precision)):pi/(.5*obj.precision):(2*pi+theta);
-            Ftemp = zeros(length(angle), 3);
-            bestTemp = zeros(length(angle), 1);
+            Ftemp = zeros(length(angle), 3,length(robots(:,1)));
+            bestTemp = zeros(length(robots(:,1)),length(angle));
             dt = obj.t - obj.tPast; % we assume timesteps are roughly equal and use this for the future step
             
             % check each spot and determine their quality
             if strcmp(obj.runspeed,'fast') == 1 || strcmp(obj.runspeed,'average_fast') == 1
-                parfor index=1:length(angle)
-                    i = obj.gamma * cos(angle(index));
-                    j = obj.gamma * sin(angle(index));
-                    k = 0;
-                    [Ftemp(index, :),bestTemp(index)] = locationTest(obj, robot, i, j, k, theta, dt);
+                for u=1:length(robots(:,1))
+                    parfor index=1:length(angle)
+                        i = obj.gamma * cos(angle(index));
+                        j = obj.gamma * sin(angle(index));
+                        k = 0;
+                        
+                        [Ftemp(index, :,u),bestTemp(u,index)] = locationTest(obj, robots(u,:), i, j, k, theta, dt);
+                    end
                 end
+                %Ftemp
+                %bestTemp
             else
                 for index=1:length(angle)
-                    i = obj.gamma * cos(angle(index));
-                    j = obj.gamma * sin(angle(index));
-                    k = 0;
-                    [Ftemp(index, :),bestTemp(index)] = locationTest(obj, robot, i, j, k, theta, dt);
+                  i = obj.gamma * cos(angle(index));
+                  j = obj.gamma * sin(angle(index));
+                  k = 0;
+                    for u=1:length(robots(:,1))
+                        [Ftemp(index,:,u),bestTemp(u,index)] = locationTest(obj, robots(u,:), i, j, k, theta, dt);
+                   end
                 end
             end
-            
+
             % pick the best direction to move in
-            for index=1:length(angle)
-                if bestTemp(index) < best
-                    best = bestTemp(index);
-                    F = Ftemp(index,:);
-                    
-                    % if two spots tie, pick the first going counterclockwise
-                    % for the current heading
-                elseif bestTemp(index) == best
-                    
-                    % theta1 and theta2 are the angles from the heading
-                    
-                    theta1 = wrapTo2Pi(atan2(Ftemp(index,2),Ftemp(index,1)) - theta);
-                    
-                    
-                    theta2 = wrapTo2Pi(atan2(F(2)-robot(2),F(1)-robot(1)) - theta);
-                    
+            for i=1:length(robots(:,1))
+                for index=1:length(angle)
+                 
+                    if bestTemp(i,index) < best(i)
+                        best(i) = bestTemp(i,index);
+                        F(i,:) = Ftemp(index,:,i);
+                        
+                        % if two spots tie, pick the first going counterclockwise
+                        % for the current heading
+                    elseif bestTemp(i,index) == best(i)
+                        
+                        % theta1 and theta2 are the angles from the heading
+                        
+                        theta1 = wrapTo2Pi(atan2(Ftemp(index,2),Ftemp(index,1)) - theta(i));
+                      
+                        
+                        
+                        theta2 = wrapTo2Pi(atan2(F(i,2)-robots(i,2),F(i,1)-robots(i,1)) - theta(i));
+                   
                     if theta1 < theta2
-                        F = Ftemp(index,:);
-                        best = bestTemp(index);
+                        F(i,:) = Ftemp(index,:,i);
+                        best(i) = bestTemp(i,index);
                         
                     end
                 end
             end
-            
+            end
         end
         
         function [ A ] = uncertaintyCalculate(obj, x, y, z, t, tempMeas, D)
@@ -800,7 +813,7 @@ classdef field < handle
         function [ F, b ] = locationTest(obj, robot, i, j, k, theta, dt)
             % tests a point to see how much cumulative uncertainty moving
             % to it would leave behind
-            
+
             % generates a temporary matrix including the new test
             % measurement
             tempMeas = [obj.measurements; robot(1) + i, robot(2) + j, robot(3) + k,...
