@@ -3,8 +3,8 @@ clear all
 
 % select initial conditions for the robots, some examples are given here
 %init = [sqrt(3)/20 -.05 0 0; sqrt(3)/20 .05 0 pi/3; 0 .1 0 2*pi/3; -sqrt(3)/20 .05 0 pi; -sqrt(3)/20 -.05 0 4*pi/3; 0 -.1 0 5*pi/3];
-%init = [0 .5 0 0; 0 -.5 0 pi];
-init = [sqrt(3)/20 -.05 0 0; -sqrt(3)/20 -.05 0 -2*pi/3; 0 .1 0 2*pi/3];
+init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
+%init = [sqrt(3)/20 -.05 0 0; -sqrt(3)/20 -.05 0 -2*pi/3; 0 .1 0 2*pi/3];
 %init = [0 .5 0 .3; .5 0 0 -pi/2 + .3; 0 -.5 0 pi+.3; -.5 0 0 pi/2 + .3];
 %init = .5 .* [ 0.5000 0 0 0; 0.3830 -0.3214 0 2*pi/9; 0.0868 -0.4924 0 4*pi/9; 
 %    -0.2500 -0.4330 0 6*pi/9; -0.4698 -0.1710 0 8*pi/9; -0.4698 0.1710 0 10*pi/9
@@ -12,7 +12,7 @@ init = [sqrt(3)/20 -.05 0 0; -sqrt(3)/20 -.05 0 -2*pi/3; 0 .1 0 2*pi/3];
 %a = transpose(0:8);
 %b = zeros(length(a),1);
 %init = [.25*cos(2*a*pi/9) -.25*sin(2*a*pi/9) b -2*a*pi/9];
-
+%init = [0 0 0 0; .2 .2 0 pi/2];
 % initialize the field object
 S = field(length(init(:,1)));
 %close all
@@ -35,7 +35,7 @@ S.polygon = [0 1; 1/sqrt(12) .5; sqrt(3)/2 .5; sqrt(3)/3 0; sqrt(3)/2 -.5;
 % 'average_slow' runs at the slow speed, but sends robots to the average of
 % their goal points to protect against noise and jitteriness
 S.runspeed = 'slow';
-S.runTime = 25;
+S.runTime = 50;
 
 if matlabpool('size') == 0 % checking to see if my pool is already open
     matlabpool open % can do more on computer with more cores
@@ -46,13 +46,13 @@ control_law = @(t,x) S.control_law(t,x);
 noise = [0.000 0.000 0 0.000];
 % calls new Miabot object that actuates robot motion
 m = Miabots(init, control_law, 'velocity', S.runTime,...
-    'sim', true, 'Ts', 0.075, 'Sim_noise', noise);
+    'sim', false);
 m.start
 
 %%
 
-%m.shutdown()
-%%
+m.shutdown()
+
 
 figure
 col=hsv(S.n_robots);
@@ -74,7 +74,7 @@ if strcmp(S.shape,'circle') == true
     angle=0:0.01:2*pi;
     x=S.radius*cos(angle);
     y=S.radius*sin(angle);
-    plot(x,y);
+    plot(x,y-.5);
 end
 if strcmp(S.shape,'sphere') == true
     hold on

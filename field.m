@@ -15,7 +15,7 @@ classdef field < handle
         k2 = 1;         % coefficient for angular velocity in control law
         k3 = 1;         % coefficient for z velocity in control law
         % matrix of covariances between measurements
-        radius = 1;    % distance to edge of survey area
+        radius = .6;    % distance to edge of survey area
         shape = 'triangle'
         % shape of the boundary area. Currently accepted are circle,
         % square, triangle, and custom.
@@ -33,6 +33,8 @@ classdef field < handle
         q = 0;          % counter used in fast runspeed to determine leader
         measurements = zeros(0,4);
         robots = zeros(0,4);
+        g = 0;
+        origin = [0 -.5 0];
         
     end
     
@@ -57,9 +59,10 @@ classdef field < handle
             % initialize the sensor objects to the current positions, and
             % record the current measurements
             for i=1:obj.n_robots
-                obj.robots(i,:) = [states(i,1) states(i,2) states(i,3) t];
-                obj.measurements = [obj.measurements; obj.robots(i,:)];
-                
+                obj.robots(i,:) = [states(i,1)-obj.origin(1) states(i,2)-obj.origin(2) states(i,3)-obj.origin(3) t];
+         
+                obj.measurements(mod(obj.g,obj.n_robots*obj.timeToDelete)+1,:) = obj.robots(i,:);
+                obj.g = obj.g+1;
             end
             
             obj.D = zeros(length(obj.measurements(:,1)) + 1, length(obj.measurements(:,1)) + 1);
@@ -104,9 +107,9 @@ classdef field < handle
                         theta = states(i,6);
                         theta_dot = states(i,7);
                         
-                        xgoal = Goals(i,1);
-                        ygoal = Goals(i,2);
-                        zgoal = 0;
+                        xgoal = Goals(i,1)+obj.origin(1);
+                        ygoal = Goals(i,2)+obj.origin(2);
+                        zgoal = 0+obj.origin(3);
                         
                         
                         % angle that the current heading is displaced from desired
@@ -180,9 +183,9 @@ classdef field < handle
                         theta = states(i,6);
                         theta_dot = states(i,7);
                         
-                        xgoal = Goals(i,1);
-                        ygoal = Goals(i,2);
-                        zgoal = 0;
+                        xgoal = Goals(i,1)+obj.origin(1);
+                        ygoal = Goals(i,2)+obj.origin(2);
+                        zgoal = 0+obj.origin(3);
                         
                         % angle that the current heading is displaced from desired
                         % heading
@@ -254,9 +257,9 @@ classdef field < handle
                         theta = states(i,6);
                         theta_dot = states(i,7);
                         
-                        xgoal = Goals(i,1);
-                        ygoal = Goals(i,2);
-                        zgoal = 0;
+                        xgoal = Goals(i,1)+obj.origin(1);
+                        ygoal = Goals(i,2)+obj.origin(2);
+                        zgoal = 0+obj.origin(3);
                         
                         % angle that the current heading is displaced from desired
                         % heading
@@ -296,7 +299,7 @@ classdef field < handle
                 %Goals = obj.bestDirection(states, states(6));
                 %Goals = obj.bestDirection(obj.robots, states(:,6));
                 parfor i=1:obj.n_robots
-                    if t < .04
+                    if t < .1
                         commands(i,:) = [.2 0 0];
                     else
                         Goals = obj.bestDirection(obj.robots(i,:), states(i,6));
@@ -311,9 +314,9 @@ classdef field < handle
                         theta = states(i,6);
                         theta_dot = states(i,7);
                         
-                        xgoal = Goals(1);
-                        ygoal = Goals(2);
-                        zgoal = Goals(3);
+                        xgoal = Goals(1)+obj.origin(1);
+                        ygoal = Goals(2)+obj.origin(2);
+                        zgoal = Goals(3)+obj.origin(3);
                         
                         
                         % angle that the current heading is displaced from desired
@@ -344,25 +347,11 @@ classdef field < handle
                     end
                 end
             end
-            
-            obj.remove();
+    
             %states
             %commands
             obj.tPast = obj.t;
             
-            
-        end
-        
-        function [] = remove(obj)
-            % removes measurements from the meas array when they are no
-            % longer relevant
-            
-            measMax = obj.timeToDelete * obj.n_robots;
-            % since measurements are stored oldest to newest, we can remove
-            % the first safely
-            while length(obj.measurements(:,1)) > measMax
-                obj.measurements = obj.measurements((2:length(obj.measurements(:,1))),:);
-            end
             
         end
         
@@ -552,7 +541,7 @@ classdef field < handle
                 
                 % conditions for a circular region of search
             elseif strcmp(obj.shape,'circle')==true
-                if (x^2 + y^2 > obj.radius^2)
+                if (x^2 + (y-.5)^2 > obj.radius^2)
                     
                     M = 1;
                 else
@@ -735,7 +724,7 @@ classdef field < handle
                 %conditions for outside sample area
                 for index=1:length(x)
                     
-                    if (x(index)^2 + y(index)^2)^.5 > obj.radius
+                    if (x(index)^2 + (y(index))^2)^.5 > obj.radius
                         A(index) = 1;
                     else
                         A(index) = obj.uncertaintyCalculate(x(index), y(index), z(index), t, tempMeas, D);
