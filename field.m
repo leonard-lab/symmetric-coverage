@@ -2,20 +2,20 @@ classdef field < handle
     %Class to run voronoi and gradient based symmetric searchs
     
     properties
-        sigma = .2;    % time constant for spatial separation of measurements
-        tau = 1;       % time constant for temporal separation of measurements
+        sigma = .3;    % time constant for spatial separation of measurements
+        tau = .5;       % time constant for temporal separation of measurements
         mu = .15;        % uncertainty in measurements, a characteristic of the sensors
-        gamma = .01;    % radius over which a gradient is determined for motion
-        timeToDelete = 3;
+        gamma = .02;    % radius over which a gradient is determined for motion
+        timeToDelete = 8;
         gridSize = -1:.2:1;
         zGridSize = 0;
         runTime;        % how many seconds the Miabots will run for
         n_robots;   % number of robots
-        k1 = 10;         % coefficient for forward velocity in control law
+        k1 = 15;         % coefficient for forward velocity in control law
         k2 = 1;         % coefficient for angular velocity in control law
         k3 = 1;         % coefficient for z velocity in control law
         % matrix of covariances between measurements
-        radius = .4;    % distance to edge of survey area
+        radius = 1;    % distance to edge of survey area
         shape = 'triangle'
         % shape of the boundary area. Currently accepted are circle,
         % square, triangle, and custom.
@@ -34,7 +34,8 @@ classdef field < handle
         measurements = zeros(0,4);
         robots = zeros(0,4);
         g = 0;
-        origin = [0 -.5 0];
+        origin = [0 0 0];
+        entropyList;
         
     end
     
@@ -174,7 +175,7 @@ classdef field < handle
             %states
             %commands
             obj.tPast = obj.t;
-            
+            obj.entropyList = [obj.entropyList; obj.determineEntropy()];
             
         end
         
@@ -615,8 +616,8 @@ classdef field < handle
             
             % checks the new uncertainty at each of the possible points,
             % and returns their sum
-            h = obj.timeUncertaintyField(robot(1) + v,robot(2) + w, robot(3) + u, tempMeas(end,4), tempMeas, D);
-            k = k + sum(h);
+            A = obj.timeUncertaintyField(robot(1) + v,robot(2) + w, robot(3) + u, tempMeas(end,4), tempMeas, D);
+            k = k + sum(A);
             
             
         end
@@ -682,8 +683,7 @@ classdef field < handle
         end
         
         function [ commands ] = commandGen(obj, states, Goals)
-            
-            %for i=1:obj.n_robots
+            % send robots along their current heading at start
             if obj.t < .1
                 for i=1:obj.n_robots
                     commands(i,:) = [.2 0 0];
@@ -734,6 +734,29 @@ classdef field < handle
                 
                 
             end
+        end
+        
+        function [ entropy ] = determineEntropy(obj)
+            D = inv(obj.fieldGen());
+            
+            p=0;
+            H = 0;
+            x = -1.5:.05:1.5;
+            y = -1.5:.05:1.5;
+            parfor i=1:length(x)
+                Htemp = 0;
+                pTemp = 0;
+                for j=1:length(y)
+                    
+                    if inpolygon(x(i),y(j),obj.polygon(:,1),obj.polygon(:,2)) == 1
+                        Htemp = Htemp + obj.timeUncertaintyField(x(i), y(j), 0, obj.t, obj.measurements, D);
+                        pTemp = pTemp+1;
+                    end
+                end
+             H = H + Htemp;
+             p = p + pTemp;
+            end
+            entropy = 1-H/p;
         end
     end
     
