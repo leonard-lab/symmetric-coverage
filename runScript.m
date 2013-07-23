@@ -3,7 +3,7 @@ clear all
 
 % select initial conditions for the robots, some examples are given here
 %init = [sqrt(3)/20 -.05 0 0; sqrt(3)/20 .05 0 pi/3; 0 .1 0 2*pi/3; -sqrt(3)/20 .05 0 pi; -sqrt(3)/20 -.05 0 4*pi/3; 0 -.1 0 5*pi/3];
-init = [0 .25 0 -.5; 0 -.25 0 pi-.5];
+init = [0 -.25 0 -.6; 0 -.75 0 pi-.5];
 %init = [sqrt(3)/20 -.05 0 0; -sqrt(3)/20 -.05 0 -2*pi/3; 0 .1 0 2*pi/3];
 %init = [0 .5 0 .3; .5 0 0 -pi/2 + .3; 0 -.5 0 pi+.3; -.5 0 0 pi/2 + .3];
 %init = .5 .* [ 0.5000 0 0 0; 0.3830 -0.3214 0 2*pi/9; 0.0868 -0.4924 0 4*pi/9; 
@@ -34,7 +34,7 @@ S.polygon = [0 1; 1/sqrt(12) .5; sqrt(3)/2 .5; sqrt(3)/3 0; sqrt(3)/2 -.5;
 % similarly to fast, but uses the average of each rotated position,
 % 'average_slow' runs at the slow speed, but sends robots to the average of
 % their goal points to protect against noise and jitteriness
-S.runspeed = 'slow';
+S.runspeed = 'precise_slow';
 S.runTime = 30;
 
 if matlabpool('size') == 0 % checking to see if my pool is already open
@@ -74,7 +74,7 @@ if strcmp(S.shape,'circle') == true
     angle=0:0.01:2*pi;
     x=S.radius*cos(angle);
     y=S.radius*sin(angle);
-    plot(x,y);
+    plot(x+S.origin(1),y+S.origin(2));
 end
 if strcmp(S.shape,'sphere') == true
     hold on
@@ -103,7 +103,7 @@ end
 %legend('Robot 1', 'Robot 2');
 %axis square;
 
-
+%{
 % plots x vs t, y vs t, z vs t, and theta vs t
 figure
 for i=1:S.n_robots
@@ -120,7 +120,7 @@ for i=1:S.n_robots
 end
 xlabel('time');
 ylabel('Y-Position');
-%{
+
 figure
 for i=1:S.n_robots
     hold on

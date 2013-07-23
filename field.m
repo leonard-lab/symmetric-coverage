@@ -6,7 +6,7 @@ classdef field < handle
         tau = 1;       % time constant for temporal separation of measurements
         mu = .15;        % uncertainty in measurements, a characteristic of the sensors
         gamma = .01;    % radius over which a gradient is determined for motion
-        timeToDelete = 5;
+        timeToDelete = 3;
         gridSize = -1:.2:1;
         zGridSize = 0;
         runTime;        % how many seconds the Miabots will run for
@@ -15,7 +15,7 @@ classdef field < handle
         k2 = 1;         % coefficient for angular velocity in control law
         k3 = 1;         % coefficient for z velocity in control law
         % matrix of covariances between measurements
-        radius = .6;    % distance to edge of survey area
+        radius = .4;    % distance to edge of survey area
         shape = 'triangle'
         % shape of the boundary area. Currently accepted are circle,
         % square, triangle, and custom.
@@ -25,7 +25,7 @@ classdef field < handle
         % alternates "leaders" every time step to increase speed and force
         % symmetry
         
-        precision = 12; % number of spots considered for goal points
+        precision = 6; % number of spots considered for goal points
         t;              % current time
         tPast = -.04;          % previous time
         D;
@@ -34,7 +34,7 @@ classdef field < handle
         measurements = zeros(0,4);
         robots = zeros(0,4);
         g = 0;
-        origin = [0 0 0];
+        origin = [0 -.5 0];
         
     end
     
@@ -87,61 +87,11 @@ classdef field < handle
                     for i=1:obj.n_robots
                         Goals(i,1:2) = GoalPoint(1:2)*[cos(-2*(i-r-1)*pi/(obj.n_robots)) sin(-2*(i-r-1)*pi/(obj.n_robots)); -sin(-2*(i-r-1)*pi/(obj.n_robots)) cos(-2*(i-r-1)*pi/(obj.n_robots))];
                     end
-                    
-                    
-                    
+
                     obj.q = obj.q + 1;
                     
-                    % use the goal points to determine commands for u_x and u_theta
-                    for i=1:obj.n_robots
-                        
-                        % F = obj.bestDirection(obj.sensors(i), states(i,6));
-                        % Get current states of the robot, x,y,z,heading, and
-                        % velocities
-                        
-                        x = states(i,1);
-                        y = states(i,2);
-                        z = states(i,3);
-                        v_x = states(i,4);
-                        v_y = states(i,5);
-                        theta = states(i,6);
-                        theta_dot = states(i,7);
-                        
-                        xgoal = Goals(i,1)+obj.origin(1);
-                        ygoal = Goals(i,2)+obj.origin(2);
-                        zgoal = 0+obj.origin(3);
-                        
-                        
-                        % angle that the current heading is displaced from desired
-                        % heading
-                        phi = wrapToPi(atan2(ygoal-y,xgoal-x)-theta);
-                        
-                        % if statement to determine control laws for angular
-                        % velocity
-                        if (phi <= pi/2) && (phi >= -pi/2)
-                            u_theta = (obj.k2)*sin(phi);
-                        else
-                            u_theta = -(obj.k2)*sin(phi);
-                        end
-                        
-                        r = ((xgoal-x)^2+(ygoal-y)^2)^.5; % distance to goal
-                        % position
-                        
-                        
-                        
-                        % control law for forward velocity
-                        u_x = ((obj.k1)*r*cos(phi));
-                        
-                        u_z = (obj.k3)*(zgoal-z);
-                        
-                        % pass forward velocity and angular velocity to the command
-                        % matrix
-                        commands(i,1) = u_x;
-                        commands(i,2) = u_theta;
-                        commands(i,3) = u_z;
-                        
-                        
-                    end
+                    commands = obj.commandGen(states, Goals);  
+                    
                 end
             elseif strcmp(obj.runspeed,'average_fast')==true
                 
@@ -164,57 +114,8 @@ classdef field < handle
                         Goals(i,1:2) = Goal(1:2)*[cos(-2*(i-1)*pi/(obj.n_robots)) sin(-2*(i-1)*pi/(obj.n_robots)); -sin(-2*(i-1)*pi/(obj.n_robots)) cos(-2*(i-1)*pi/(obj.n_robots))];
                         Goals(i,3) = Goal(3);
                     end
-                    
-                    
-                    
-                    
-                    % use the goal points to determine commands for u_x and u_theta
-                    for i=1:obj.n_robots
-                        
-                        
-                        % Get current states of the robot, x,y,z,heading, and
-                        % velocities
-                        
-                        x = states(i,1);
-                        y = states(i,2);
-                        z = states(i,3);
-                        v_x = states(i,4);
-                        v_y = states(i,5);
-                        theta = states(i,6);
-                        theta_dot = states(i,7);
-                        
-                        xgoal = Goals(i,1)+obj.origin(1);
-                        ygoal = Goals(i,2)+obj.origin(2);
-                        zgoal = 0+obj.origin(3);
-                        
-                        % angle that the current heading is displaced from desired
-                        % heading
-                        phi = wrapToPi(atan2(ygoal-y,xgoal-x)-theta);
-                        
-                        % if statement to determine control laws for angular
-                        % velocity
-                        if (phi <= pi/2) && (phi >= -pi/2)
-                            u_theta = (obj.k2)*sin(phi);
-                        else
-                            u_theta = -(obj.k2)*sin(phi);
-                        end
-                        
-                        r = ((xgoal-x)^2+(ygoal-y)^2)^.5; % distance to goal
-                        % position
-                        
-                        
-                        
-                        % control law for forward velocity
-                        u_x = ((obj.k1)*r*cos(phi));
-                        
-                        u_z = (obj.k3)*(zgoal-z);
-                        % pass forward velocity and angular velocity to the command
-                        % matrix
-                        commands(i,1) = u_x;
-                        commands(i,2) = u_theta;
-                        commands(i,3) = u_z;
-                        
-                    end
+
+                    commands = obj.commandGen(states, Goals);
                 end
                 
             elseif strcmp(obj.runspeed,'average_slow')==true
@@ -240,55 +141,9 @@ classdef field < handle
                     end
                     
                     
+                    commands = obj.commandGen(states, Goals);
                     
                     
-                    % use the goal points to determine commands for u_x and u_theta
-                    for i=1:obj.n_robots
-                        
-                        % F = obj.bestDirection(obj.sensors(i), states(i,6));
-                        % Get current states of the robot, x,y,z,heading, and
-                        % velocities
-                        
-                        x = states(i,1);
-                        y = states(i,2);
-                        z = states(i,3);
-                        v_x = states(i,4);
-                        v_y = states(i,5);
-                        theta = states(i,6);
-                        theta_dot = states(i,7);
-                        
-                        xgoal = Goals(i,1)+obj.origin(1);
-                        ygoal = Goals(i,2)+obj.origin(2);
-                        zgoal = 0+obj.origin(3);
-                        
-                        % angle that the current heading is displaced from desired
-                        % heading
-                        phi = wrapToPi(atan2(ygoal-y,xgoal-x)-theta);
-                        
-                        % if statement to determine control laws for angular
-                        % velocity
-                        if (phi <= pi/2) && (phi >= -pi/2)
-                            u_theta = (obj.k2)*sin(phi);
-                        else
-                            u_theta = -(obj.k2)*sin(phi);
-                        end
-                        
-                        r = ((xgoal-x)^2+(ygoal-y)^2)^.5; % distance to goal
-                        % position
-                        
-                        
-                        
-                        % control law for forward velocity
-                        u_x = ((obj.k1)*r*cos(phi));
-                        
-                        u_z = (obj.k3)*(zgoal-z);
-                        % pass forward velocity and angular velocity to the command
-                        % matrix
-                        commands(i,1) = u_x;
-                        commands(i,2) = u_theta;
-                        commands(i,3) = u_z;
-                        
-                    end
                 end
             elseif strcmp(obj.runspeed,'precise_slow') == 1
                 commands = zeros(obj.n_robots,3);
@@ -297,56 +152,10 @@ classdef field < handle
                 % law
                 
                 %Goals = obj.bestDirection(states, states(6));
-              if t >= .1
+               
                 Goals = obj.bestDirection(obj.robots, states(:,6));
-              end
-                for i=1:obj.n_robots
-                    if t < .1
-                        commands(i,:) = [.2 0 0];
-                    else
-                        % Get current states of the robot, x,y,z,heading, and
-                        % velocities
-                        
-                        x = states(i,1);
-                        y = states(i,2);
-                        z = states(i,3);
-                        v_x = states(i,4);
-                        v_y = states(i,5);
-                        theta = states(i,6);
-                        theta_dot = states(i,7);
-                        
-                        xgoal = Goals(i,1)+obj.origin(1);
-                        ygoal = Goals(i,2)+obj.origin(2);
-                        zgoal = Goals(i,3)+obj.origin(3);
-                        
               
-                        % angle that the current heading is displaced from desired
-                        % heading
-                        phi = wrapToPi(atan2(ygoal-y,xgoal-x)-theta);
-                        
-                        % if statement to determine control laws for angular
-                        % velocity
-                        if (phi <= pi/2) && (phi >= -pi/2)
-                            u_theta = (obj.k2)*sin(phi);
-                        else
-                            u_theta = -(obj.k2)*sin(phi);
-                        end
-                        
-                        r = ((xgoal-x)^2+(ygoal-y)^2)^.5; % distance to goal
-                        % position
-                        
-                        
-                        
-                        % control law for forward velocity
-                        u_x = ((obj.k1)*r*cos(phi));
-                        
-                        u_z = (obj.k3)*(zgoal-z);
-                        % pass forward velocity and angular velocity to the command
-                        % matrix
-                        commands(i,:) = [u_x u_theta u_z];
-                        
-                    end
-                end
+                commands = obj.commandGen(states, Goals);
             else
                 commands = zeros(obj.n_robots,3);
                 
@@ -356,53 +165,10 @@ classdef field < handle
                 %Goals = obj.bestDirection(states, states(6));
                 %Goals = obj.bestDirection(obj.robots, states(:,6));
                 parfor i=1:obj.n_robots
-                    if t < .1
-                        commands(i,:) = [.2 0 0];
-                    else
-                        Goals = obj.bestDirection(obj.robots(i,:), states(i,6));
-                        % Get current states of the robot, x,y,z,heading, and
-                        % velocities
-                        
-                        x = states(i,1);
-                        y = states(i,2);
-                        z = states(i,3);
-                        v_x = states(i,4);
-                        v_y = states(i,5);
-                        theta = states(i,6);
-                        theta_dot = states(i,7);
-                        
-                        xgoal = Goals(1)+obj.origin(1);
-                        ygoal = Goals(2)+obj.origin(2);
-                        zgoal = Goals(3)+obj.origin(3);
-                        
-                        
-                        % angle that the current heading is displaced from desired
-                        % heading
-                        phi = wrapToPi(atan2(ygoal-y,xgoal-x)-theta);
-                        
-                        % if statement to determine control laws for angular
-                        % velocity
-                        if (phi <= pi/2) && (phi >= -pi/2)
-                            u_theta = (obj.k2)*sin(phi);
-                        else
-                            u_theta = -(obj.k2)*sin(phi);
-                        end
-                        
-                        r = ((xgoal-x)^2+(ygoal-y)^2)^.5; % distance to goal
-                        % position
-                        
-                        
-                        
-                        % control law for forward velocity
-                        u_x = ((obj.k1)*r*cos(phi));
-                        
-                        u_z = (obj.k3)*(zgoal-z);
-                        % pass forward velocity and angular velocity to the command
-                        % matrix
-                        commands(i,:) = [u_x u_theta u_z];
+                        Goals(i,:) = obj.bestDirection(obj.robots(i,:), states(i,6));
                         
                     end
-                end
+               commands = obj.commandGen(states, Goals);
             end
     
             %states
@@ -701,7 +467,7 @@ classdef field < handle
                   
                         % theta1 and theta2 are the angles from the heading
                         
-                        theta1 = wrapTo2Pi(atan2(Ftemp(2,i,index),Ftemp(1,i,index)) - theta(i));
+                        theta1 = wrapTo2Pi(atan2(Ftemp(i,2,index),Ftemp(i,1,index)) - theta(i));
                       
                         
                         
@@ -913,6 +679,61 @@ classdef field < handle
                 [Ftemp(u,:),bestTemp(u,1)] = obj.locationTest(robots(u,:), i, j, k, theta(u), dt);
             end
 
+        end
+        
+        function [ commands ] = commandGen(obj, states, Goals)
+            
+            %for i=1:obj.n_robots
+            if obj.t < .1
+                for i=1:obj.n_robots
+                    commands(i,:) = [.2 0 0];
+                end
+            else
+                % Get current states of the robot, x,y,z,heading, and
+                % velocities
+                
+                x = states(:,1);
+                y = states(:,2);
+                z = states(:,3);
+                v_x = states(:,4);
+                v_y = states(:,5);
+                theta = states(:,6);
+                theta_dot = states(:,7);
+                
+                xgoal = Goals(:,1)+obj.origin(1);
+                ygoal = Goals(:,2)+obj.origin(2);
+                zgoal = Goals(:,3)+obj.origin(3);
+                
+                
+                % angle that the current heading is displaced from desired
+                % heading
+                phi = wrapToPi(atan2(ygoal-y,xgoal-x)-theta);
+                
+                % if statement to determine control laws for angular
+                % velocity
+                for i=1:length(phi)
+                    if (phi(i) <= pi/2) && (phi(i) >= -pi/2)
+                        u_theta(i,1) = (obj.k2)*sin(phi(i));
+                    else
+                        u_theta(i,1) = -(obj.k2)*sin(phi(i));
+                    end
+                end
+                r = ((xgoal-x).^2+(ygoal-y).^2).^.5; % distance to goal
+                % position
+                
+                
+                
+                % control law for forward velocity
+                u_x = ((obj.k1).*r.*cos(phi));
+                
+                u_z = (obj.k3).*(zgoal-z);
+                
+                % pass forward velocity and angular velocity to the command
+                % matrix
+                commands = [u_x u_theta u_z];
+                
+                
+            end
         end
     end
     
