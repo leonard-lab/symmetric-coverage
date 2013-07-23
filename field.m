@@ -25,7 +25,7 @@ classdef field < handle
         % alternates "leaders" every time step to increase speed and force
         % symmetry
         
-        precision = 6; % number of spots considered for goal points
+        precision = 12; % number of spots considered for goal points
         t;              % current time
         tPast = -.04;          % previous time
         D;
@@ -290,19 +290,20 @@ classdef field < handle
                         
                     end
                 end
-            else
+            elseif strcmp(obj.runspeed,'precise_slow') == 1
                 commands = zeros(obj.n_robots,3);
                 
                 % calculates each robot individually, per the actual control
                 % law
                 
                 %Goals = obj.bestDirection(states, states(6));
+              if t >= .1
                 Goals = obj.bestDirection(obj.robots, states(:,6));
+              end
                 for i=1:obj.n_robots
                     if t < .1
                         commands(i,:) = [.2 0 0];
                     else
-                        %Goals = obj.bestDirection(obj.robots(i,:), states(i,6));
                         % Get current states of the robot, x,y,z,heading, and
                         % velocities
                         
@@ -319,6 +320,62 @@ classdef field < handle
                         zgoal = Goals(i,3)+obj.origin(3);
                         
               
+                        % angle that the current heading is displaced from desired
+                        % heading
+                        phi = wrapToPi(atan2(ygoal-y,xgoal-x)-theta);
+                        
+                        % if statement to determine control laws for angular
+                        % velocity
+                        if (phi <= pi/2) && (phi >= -pi/2)
+                            u_theta = (obj.k2)*sin(phi);
+                        else
+                            u_theta = -(obj.k2)*sin(phi);
+                        end
+                        
+                        r = ((xgoal-x)^2+(ygoal-y)^2)^.5; % distance to goal
+                        % position
+                        
+                        
+                        
+                        % control law for forward velocity
+                        u_x = ((obj.k1)*r*cos(phi));
+                        
+                        u_z = (obj.k3)*(zgoal-z);
+                        % pass forward velocity and angular velocity to the command
+                        % matrix
+                        commands(i,:) = [u_x u_theta u_z];
+                        
+                    end
+                end
+            else
+                commands = zeros(obj.n_robots,3);
+                
+                % calculates each robot individually, per the actual control
+                % law
+                
+                %Goals = obj.bestDirection(states, states(6));
+                %Goals = obj.bestDirection(obj.robots, states(:,6));
+                parfor i=1:obj.n_robots
+                    if t < .1
+                        commands(i,:) = [.2 0 0];
+                    else
+                        Goals = obj.bestDirection(obj.robots(i,:), states(i,6));
+                        % Get current states of the robot, x,y,z,heading, and
+                        % velocities
+                        
+                        x = states(i,1);
+                        y = states(i,2);
+                        z = states(i,3);
+                        v_x = states(i,4);
+                        v_y = states(i,5);
+                        theta = states(i,6);
+                        theta_dot = states(i,7);
+                        
+                        xgoal = Goals(1)+obj.origin(1);
+                        ygoal = Goals(2)+obj.origin(2);
+                        zgoal = Goals(3)+obj.origin(3);
+                        
+                        
                         % angle that the current heading is displaced from desired
                         % heading
                         phi = wrapToPi(atan2(ygoal-y,xgoal-x)-theta);
@@ -608,24 +665,27 @@ classdef field < handle
             dt = obj.t - obj.tPast; % we assume timesteps are roughly equal and use this for the future step
             
             % check each spot and determine their quality
-            %if strcmp(obj.runspeed,'fast') == 1 || strcmp(obj.runspeed,'average_fast') == 1
+            if strcmp(obj.runspeed,'fast') == 1 || strcmp(obj.runspeed,'average_fast') == 1 ||...
+                    strcmp(obj.runspeed,'precise_slow') == 1
                 
             parfor index=1:obj.precision
                [Ftemp(:,:,index), bestTemp(:,index)] = obj.compileLocationTest(robots, theta, index, dt);
         
             end
+            
 
-
-            %else
-            %    for index=1:length(angle)
-            %      i = obj.gamma * cos(angle(index));
-            %     j = obj.gamma * sin(angle(index));
-            %      k = 0;
-            %        for u=1:length(robots(:,1))
-            %            [Ftemp(index,:,u),bestTemp(u,index)] = obj.locationTest(robots(u,:), i, j, k, theta, dt);
-            %       end
-            %    end
-            %end
+            else
+                angle=theta+pi/(.5*obj.precision):pi/(.5*obj.precision):(2*pi+theta);
+                for index=1:length(angle)
+                  i = obj.gamma * cos(angle(index));
+                  j = obj.gamma * sin(angle(index));
+                  k = 0;
+                    for u=1:length(robots(:,1))
+                        [Ftemp(u,:,index),bestTemp(u,index)] = obj.locationTest(robots(u,:), i, j, k, theta, dt);
+                   end
+                end
+        end
+            
 
             % pick the best direction to move in
             for i=1:length(robots(:,1))
@@ -845,7 +905,7 @@ classdef field < handle
             
             
             for u=1:length(robots(:,1))
-                angle=wrapToPi(theta(u)+pi/(.5*obj.precision)):pi/(.5*obj.precision):(2*pi+theta(u));
+                angle=theta(u)+pi/(.5*obj.precision):pi/(.5*obj.precision):(2*pi+theta(u));
                 i = obj.gamma * cos(angle(index));
                 j = obj.gamma * sin(angle(index));
                 k = 0;
