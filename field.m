@@ -3,19 +3,19 @@ classdef field < handle
     
     properties
         sigma = .3;    % time constant for spatial separation of measurements
-        tau = .5;       % time constant for temporal separation of measurements
+        tau = .3;       % time constant for temporal separation of measurements
         mu = .15;        % uncertainty in measurements, a characteristic of the sensors
-        gamma = .02;    % radius over which a gradient is determined for motion
-        timeToDelete = 8;
+        gamma = .06;    % radius over which a gradient is determined for motion
+        timeToDelete = 3;
         gridSize = -1:.2:1;
         zGridSize = 0;
         runTime;        % how many seconds the Miabots will run for
         n_robots;   % number of robots
-        k1 = 15;         % coefficient for forward velocity in control law
+        k1 = .6;         % coefficient for forward velocity in control law
         k2 = 1;         % coefficient for angular velocity in control law
         k3 = 1;         % coefficient for z velocity in control law
         % matrix of covariances between measurements
-        radius = 1;    % distance to edge of survey area
+        radius = .4;    % distance to edge of survey area
         shape = 'triangle'
         % shape of the boundary area. Currently accepted are circle,
         % square, triangle, and custom.
@@ -34,8 +34,9 @@ classdef field < handle
         measurements = zeros(0,4);
         robots = zeros(0,4);
         g = 0;
-        origin = [0 0 0];
+        origin = [0 -.5 0];
         entropyList;
+        storeMeas = cell(1,1);
         
     end
     
@@ -67,7 +68,7 @@ classdef field < handle
             end
             
             obj.D = zeros(length(obj.measurements(:,1)) + 1, length(obj.measurements(:,1)) + 1);
-            obj.D(1:end-1,1:end-1) = obj.fieldGen();
+            obj.D(1:end-1,1:end-1) = obj.fieldGen(obj.measurements);
             
             % runs the 'fast' version of the control law
             if strcmp(obj.runspeed,'fast')==true
@@ -89,7 +90,7 @@ classdef field < handle
                         Goals(i,1:2) = GoalPoint(1:2)*[cos(-2*(i-r-1)*pi/(obj.n_robots)) sin(-2*(i-r-1)*pi/(obj.n_robots)); -sin(-2*(i-r-1)*pi/(obj.n_robots)) cos(-2*(i-r-1)*pi/(obj.n_robots))];
                     end
 
-                    obj.q = obj.q + 1;
+                    
                     
                     commands = obj.commandGen(states, Goals);  
                     
@@ -147,8 +148,6 @@ classdef field < handle
                     
                 end
             elseif strcmp(obj.runspeed,'precise_slow') == 1
-                commands = zeros(obj.n_robots,3);
-                
                 % calculates each robot individually, per the actual control
                 % law
                 
@@ -158,8 +157,6 @@ classdef field < handle
               
                 commands = obj.commandGen(states, Goals);
             else
-                commands = zeros(obj.n_robots,3);
-                
                 % calculates each robot individually, per the actual control
                 % law
                 
@@ -174,28 +171,30 @@ classdef field < handle
     
             %states
             %commands
+            obj.q = obj.q + 1;
             obj.tPast = obj.t;
-            obj.entropyList = [obj.entropyList; obj.determineEntropy()];
+            %obj.storeMeas{obj.q} = obj.measurements;
+            %obj.entropyList = [obj.entropyList; obj.determineEntropy()];
             
         end
         
-        function [ D ] = fieldGen(obj)
+        function [ D ] = fieldGen(obj, measurements)
             % generates the covariance between two measurement points, and
             % returns a matrix of it
             
-            C = zeros(length(obj.measurements(:,1)), length(obj.measurements(:,1)));
-            for i=1:length(obj.measurements(:,1))
-                for j=1:length(obj.measurements(:,1))
+            C = zeros(length(measurements(:,1)), length(measurements(:,1)));
+            for i=1:length(measurements(:,1))
+                for j=1:length(measurements(:,1))
                     
-                    C(i,j) = exp(-abs(((sqrt((obj.measurements(i,1) - obj.measurements(j,1))^2 ...
-                        + (obj.measurements(i,2) - obj.measurements(j,2))^2 + (obj.measurements(i,3) - obj.measurements(j,3))^2)/ obj.sigma))) ...
-                        - abs((obj.measurements(i,4) - obj.measurements(j,4))/ obj.tau));
+                    C(i,j) = exp(-abs(((sqrt((measurements(i,1) - measurements(j,1))^2 ...
+                        + (measurements(i,2) - measurements(j,2))^2 + (measurements(i,3) - measurements(j,3))^2)/ obj.sigma))) ...
+                        - abs((measurements(i,4) - measurements(j,4))/ obj.tau));
                     
                 end
             end
             
             % adds the uncertainty of the sensors to their variance
-            D = C + obj.mu * eye(length(obj.measurements(:,1)));
+            D = C + obj.mu * eye(length(measurements(:,1)));
             
         end
         
@@ -204,7 +203,7 @@ classdef field < handle
             % sensor weighted by uncertainty
             
             % finds the inverse of covariance, needed for the uncertainty
-            obj.D = inv(obj.fieldGen);
+            obj.D = inv(obj.fieldGen(obj.measurements));
             
             % arrays for finding the center of mass of each region
             densitySums = zeros(length(obj.gridSize),length(obj.robots(:,1)));
@@ -430,7 +429,7 @@ classdef field < handle
             Ftemp = zeros(length(robots(:,1)), 3, obj.precision);
             bestTemp = zeros(length(robots(:,1)),obj.precision);
             dt = obj.t - obj.tPast; % we assume timesteps are roughly equal and use this for the future step
-            
+           
             % check each spot and determine their quality
             if strcmp(obj.runspeed,'fast') == 1 || strcmp(obj.runspeed,'average_fast') == 1 ||...
                     strcmp(obj.runspeed,'precise_slow') == 1
@@ -533,7 +532,7 @@ classdef field < handle
                 
                 for index=1:length(x)
                     
-                    if (x(index) > sqrt(3)/2) || (x(index) < -sqrt(3)/2) || (y(index) > (-sqrt(3)*x(index) + 1)) || (y(index) > (sqrt(3)*x(index) + 1)) || (y(index) < -.5)
+                    if (x(index) > sqrt(3)/2*obj.radius) || (x(index) < -sqrt(3)/2)*obj.radius || (y(index) > (-sqrt(3)*x(index) + 1)*obj.radius) || (y(index) > (sqrt(3)*x(index) + 1)*obj.radius) || (y(index) < -.5*obj.radius)
                         
                         A(index) = 1;
                     else
@@ -684,7 +683,7 @@ classdef field < handle
         
         function [ commands ] = commandGen(obj, states, Goals)
             % send robots along their current heading at start
-            if obj.t < .1
+            if obj.t < .15
                 for i=1:obj.n_robots
                     commands(i,:) = [.2 0 0];
                 end
@@ -736,26 +735,28 @@ classdef field < handle
             end
         end
         
-        function [ entropy ] = determineEntropy(obj)
-            D = inv(obj.fieldGen());
+        function [ entropy ] = determineEntropy(obj, measurements)
+            D = inv(obj.fieldGen(measurements));
             
             p=0;
             H = 0;
-            x = -1.5:.05:1.5;
-            y = -1.5:.05:1.5;
+            x = -1.5:.1:1.5;
+            y = -1.5:.1:1.5;
             parfor i=1:length(x)
                 Htemp = 0;
                 pTemp = 0;
                 for j=1:length(y)
                     
                     if inpolygon(x(i),y(j),obj.polygon(:,1),obj.polygon(:,2)) == 1
-                        Htemp = Htemp + obj.timeUncertaintyField(x(i), y(j), 0, obj.t, obj.measurements, D);
+                        Htemp = Htemp + obj.timeUncertaintyField(x(i), y(j), 0, obj.t, measurements, D);
                         pTemp = pTemp+1;
                     end
                 end
              H = H + Htemp;
              p = p + pTemp;
             end
+            p
+            H
             entropy = 1-H/p;
         end
     end
