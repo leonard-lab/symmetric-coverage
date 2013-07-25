@@ -3,19 +3,19 @@ classdef field < handle
     
     properties
         sigma = .3;    % time constant for spatial separation of measurements
-        tau = .3;       % time constant for temporal separation of measurements
+        tau = 1.8;       % time constant for temporal separation of measurements
         mu = .15;        % uncertainty in measurements, a characteristic of the sensors
-        gamma = .06;    % radius over which a gradient is determined for motion
-        timeToDelete = 3;
+        gamma = .02;    % radius over which a gradient is determined for motion
+        timeToDelete = 5;
         gridSize = -1:.2:1;
         zGridSize = 0;
         runTime;        % how many seconds the Miabots will run for
         n_robots;   % number of robots
-        k1 = .6;         % coefficient for forward velocity in control law
+        k1 = 8;         % coefficient for forward velocity in control law
         k2 = 1;         % coefficient for angular velocity in control law
         k3 = 1;         % coefficient for z velocity in control law
         % matrix of covariances between measurements
-        radius = .4;    % distance to edge of survey area
+        radius = 1;    % distance to edge of survey area
         shape = 'triangle'
         % shape of the boundary area. Currently accepted are circle,
         % square, triangle, and custom.
@@ -34,10 +34,11 @@ classdef field < handle
         measurements = zeros(0,4);
         robots = zeros(0,4);
         g = 0;
-        origin = [0 -.5 0];
+        h = 0;
+        origin = [0 0 0];
         entropyList;
         storeMeas = cell(1,1);
-        
+        storeT;
     end
     
     methods
@@ -49,6 +50,7 @@ classdef field < handle
             for i=1:obj.n_robots
                 obj.robots(i,:) = [0 0 0 0];
             end
+            obj.h = zeros(1,n);
             
         end
         
@@ -62,7 +64,7 @@ classdef field < handle
             % record the current measurements
             for i=1:obj.n_robots
                 obj.robots(i,:) = [states(i,1)-obj.origin(1) states(i,2)-obj.origin(2) states(i,3)-obj.origin(3) t];
-         
+                
                 obj.measurements(mod(obj.g,obj.n_robots*obj.timeToDelete)+1,:) = obj.robots(i,:);
                 obj.g = obj.g+1;
             end
@@ -89,10 +91,10 @@ classdef field < handle
                     for i=1:obj.n_robots
                         Goals(i,1:2) = GoalPoint(1:2)*[cos(-2*(i-r-1)*pi/(obj.n_robots)) sin(-2*(i-r-1)*pi/(obj.n_robots)); -sin(-2*(i-r-1)*pi/(obj.n_robots)) cos(-2*(i-r-1)*pi/(obj.n_robots))];
                     end
-
                     
                     
-                    commands = obj.commandGen(states, Goals);  
+                    
+                    commands = obj.commandGen(states, Goals);
                     
                 end
             elseif strcmp(obj.runspeed,'average_fast')==true
@@ -116,7 +118,7 @@ classdef field < handle
                         Goals(i,1:2) = Goal(1:2)*[cos(-2*(i-1)*pi/(obj.n_robots)) sin(-2*(i-1)*pi/(obj.n_robots)); -sin(-2*(i-1)*pi/(obj.n_robots)) cos(-2*(i-1)*pi/(obj.n_robots))];
                         Goals(i,3) = Goal(3);
                     end
-
+                    
                     commands = obj.commandGen(states, Goals);
                 end
                 
@@ -151,10 +153,9 @@ classdef field < handle
                 % calculates each robot individually, per the actual control
                 % law
                 
-                %Goals = obj.bestDirection(states, states(6));
-               
+                
                 Goals = obj.bestDirection(obj.robots, states(:,6));
-              
+                
                 commands = obj.commandGen(states, Goals);
             else
                 % calculates each robot individually, per the actual control
@@ -163,19 +164,20 @@ classdef field < handle
                 %Goals = obj.bestDirection(states, states(6));
                 %Goals = obj.bestDirection(obj.robots, states(:,6));
                 parfor i=1:obj.n_robots
-                        Goals(i,:) = obj.bestDirection(obj.robots(i,:), states(i,6));
-                        
-                    end
-               commands = obj.commandGen(states, Goals);
+                    
+                    Goals(i,:) = obj.bestDirection(obj.robots(i,:), states(i,6));
+                    
+                end
+                commands = obj.commandGen(states, Goals);
             end
-    
+            
             %states
             %commands
             obj.q = obj.q + 1;
             obj.tPast = obj.t;
-            %obj.storeMeas{obj.q} = obj.measurements;
-            %obj.entropyList = [obj.entropyList; obj.determineEntropy()];
-            
+            obj.storeMeas{obj.q} = obj.measurements;
+            %obj.entropyList = [obj.entropyList; obj.determineEntropy(obj.measurements, obj.t)];
+            obj.storeT = [obj.storeT; obj.t];
         end
         
         function [ D ] = fieldGen(obj, measurements)
@@ -425,38 +427,38 @@ classdef field < handle
             
             F = zeros(length(robots(:,1)),3);
             % array of angles to be checked
-       
+            
             Ftemp = zeros(length(robots(:,1)), 3, obj.precision);
             bestTemp = zeros(length(robots(:,1)),obj.precision);
             dt = obj.t - obj.tPast; % we assume timesteps are roughly equal and use this for the future step
-           
+            
             % check each spot and determine their quality
             if strcmp(obj.runspeed,'fast') == 1 || strcmp(obj.runspeed,'average_fast') == 1 ||...
                     strcmp(obj.runspeed,'precise_slow') == 1
                 
-            parfor index=1:obj.precision
-               [Ftemp(:,:,index), bestTemp(:,index)] = obj.compileLocationTest(robots, theta, index, dt);
-        
-            end
-            
-
+                parfor index=1:obj.precision
+                    [Ftemp(:,:,index), bestTemp(:,index)] = obj.compileLocationTest(robots, theta, index, dt);
+                    
+                end
+                
+                
             else
                 angle=theta+pi/(.5*obj.precision):pi/(.5*obj.precision):(2*pi+theta);
                 for index=1:length(angle)
-                  i = obj.gamma * cos(angle(index));
-                  j = obj.gamma * sin(angle(index));
-                  k = 0;
+                    i = obj.gamma * cos(angle(index));
+                    j = obj.gamma * sin(angle(index));
+                    k = 0;
                     for u=1:length(robots(:,1))
                         [Ftemp(u,:,index),bestTemp(u,index)] = obj.locationTest(robots(u,:), i, j, k, theta, dt);
-                   end
+                    end
                 end
-        end
+            end
             
-
+            
             % pick the best direction to move in
             for i=1:length(robots(:,1))
                 for index=1:obj.precision
-                 
+                    
                     if bestTemp(i,index) < best(i)
                         best(i) = bestTemp(i,index);
                         F(i,:) = Ftemp(i,:,index);
@@ -464,22 +466,22 @@ classdef field < handle
                         % if two spots tie, pick the first going counterclockwise
                         % for the current heading
                     elseif bestTemp(i,index) == best(i)
-                  
+                        
                         % theta1 and theta2 are the angles from the heading
                         
                         theta1 = wrapTo2Pi(atan2(Ftemp(i,2,index),Ftemp(i,1,index)) - theta(i));
-                      
+                        
                         
                         
                         theta2 = wrapTo2Pi(atan2(F(i,2)-robots(i,2),F(i,1)-robots(i,1)) - theta(i));
-                   
-                    if theta1 < theta2
-                        F(i,:) = Ftemp(i,:,index);
-                        best(i) = bestTemp(i,index);
                         
+                        if theta1 < theta2
+                            F(i,:) = Ftemp(i,:,index);
+                            best(i) = bestTemp(i,index);
+                            
+                        end
                     end
                 end
-            end
             end
         end
         
@@ -523,7 +525,6 @@ classdef field < handle
         function [ A ] = timeUncertaintyField(obj, x, y, z, t, tempMeas, D)
             % generates the uncertainty at a given place in space and time,
             % used in the gradient control law
-            
             
             if strcmp(obj.shape,'triangle')==true
                 A = zeros(1,length(x));
@@ -624,9 +625,9 @@ classdef field < handle
         function [ F, b ] = locationTest(obj, robot, i, j, k, theta, dt)
             % tests a point to see how much cumulative uncertainty moving
             % to it would leave behind
-
+            
             % generates a temporary matrix including the new test
-            % measurement
+    
             tempMeas = [obj.measurements; robot(1) + i, robot(2) + j, robot(3) + k,...
                 robot(4) + dt];
             
@@ -638,6 +639,7 @@ classdef field < handle
             
             
         end
+        
         
         function [ D ] = finishCovariance(obj, C, tempMeas)
             % calculates the covariances of the new measurement with all
@@ -675,12 +677,11 @@ classdef field < handle
                 i = obj.gamma * cos(angle(index));
                 j = obj.gamma * sin(angle(index));
                 k = 0;
-            
+                
                 [Ftemp(u,:),bestTemp(u,1)] = obj.locationTest(robots(u,:), i, j, k, theta(u), dt);
             end
-
+            
         end
-        
         function [ commands ] = commandGen(obj, states, Goals)
             % send robots along their current heading at start
             if obj.t < .15
@@ -735,28 +736,28 @@ classdef field < handle
             end
         end
         
-        function [ entropy ] = determineEntropy(obj, measurements)
+        function [ entropy ] = determineEntropy(obj, measurements,t)
             D = inv(obj.fieldGen(measurements));
             
             p=0;
             H = 0;
             x = -1.5:.1:1.5;
             y = -1.5:.1:1.5;
+            Htemp = zeros(1,length(x));
+            pTemp = zeros(1,length(x));
             parfor i=1:length(x)
-                Htemp = 0;
-                pTemp = 0;
                 for j=1:length(y)
                     
                     if inpolygon(x(i),y(j),obj.polygon(:,1),obj.polygon(:,2)) == 1
-                        Htemp = Htemp + obj.timeUncertaintyField(x(i), y(j), 0, obj.t, measurements, D);
-                        pTemp = pTemp+1;
+                        Htemp(i) = Htemp(i) + obj.timeUncertaintyField(x(i), y(j), 0, t, measurements, D)
+                        pTemp(i) = pTemp(i)+1;
                     end
                 end
-             H = H + Htemp;
-             p = p + pTemp;
+                
             end
-            p
-            H
+            H = H + sum(Htemp);
+            p = p + sum(pTemp);
+            
             entropy = 1-H/p;
         end
     end
