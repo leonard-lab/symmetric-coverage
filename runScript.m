@@ -4,18 +4,20 @@ clear all
 % select initial conditions for the robots, some examples are given here
 %init = [sqrt(3)/20 -.05 0 0; sqrt(3)/20 .05 0 pi/3; 0 .1 0 2*pi/3; -sqrt(3)/20 .05 0 pi; -sqrt(3)/20 -.05 0 4*pi/3; 0 -.1 0 5*pi/3];
 %init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
-init = [sqrt(3)/20 -.05 0 .3; -sqrt(3)/20 -.05 0 -2*pi/3+.3; 0 .1 0 2*pi/3+.3];
+init = [sqrt(3)/20 -.05 0 0; -sqrt(3)/20 -.05 0 -2*pi/3; 0 .1 0 2*pi/3];
 %init = [0 .5 0 .3; .5 0 0 -pi/2 + .3; 0 -.5 0 pi+.3; -.5 0 0 pi/2 + .3];
-%init = [ 0.5000 0 0 0; 0.3830 -0.3214 0 2*pi/9; 0.0868 -0.4924 0 4*pi/9; 
+
+%init = [ 0.5000 0 0 0; 0.3830 -0.3214 0 2*pi/9; 0.0868 -0.4924 0 4*pi/9;
 %    -0.2500 -0.4330 0 6*pi/9; -0.4698 -0.1710 0 8*pi/9; -0.4698 0.1710 0 10*pi/9
 %    -0.2500 0.4330 0 12*pi/9; 0.0868 0.4924 0 14*pi/9; 0.3830 0.3214 0 16*pi/9];
+
 %a = transpose(0:8);
 %b = zeros(length(a),1);
 %init = [.25*cos(2*a*pi/9) -.25*sin(2*a*pi/9) b -2*a*pi/9];
 
 % initialize the field object
 S = streamedField(length(init(:,1)));
-%close all
+
 % can adjust shape of survey area, default is triangular, with sphere,
 % circle, square, and custom being other options
 S.shape = 'circle';
@@ -23,23 +25,25 @@ S.shape = 'circle';
 % if shape is 'custom' polygon represents the vertices of the shape
 %S.polygon = [1 1; -1 1; -1 -1; 1 -1; 1 1];
 %S.polygon = S.radius * [1.5 .5*sqrt(3); 0 sqrt(3); -1.5 .5*sqrt(3); -1.5 -.5*sqrt(3); 0 -sqrt(3); 1.5 -.5*sqrt(3); 1.5 .5*sqrt(3)];
+
 %S.polygon = 2.*[0 1; 1/sqrt(12) .5; sqrt(3)/2 .5; sqrt(3)/3 0; sqrt(3)/2 -.5;
 %    1/sqrt(12) -.5; 0 -1; -1/sqrt(12) -.5; -sqrt(3)/2 -.5; -sqrt(3)/3 0;
 %    -sqrt(3)/2 .5; -1/sqrt(12) .5; 0 1];
-    angle=0:0.01:2*pi;
-    x=S.radius*cos(angle);
-    y=S.radius*sin(angle);
 
-   S.polygon = [transpose(x) transpose(y)];
+angle=0:0.01:2*pi;
+x=S.radius*cos(angle);
+y=S.radius*sin(angle);
 
-  
+S.polygon = [transpose(x) transpose(y)];
+
+%S.runspeed = 'fast';
 % selects speed of the run, 'slow' computes each robot individually, but is
 % susceptible to noise, 'fast' alternates leader robots to speed up the
 % program, at the possible expense of accuracy, 'average_fast' runs
 % similarly to fast, but uses the average of each rotated position,
 % 'average_slow' runs at the slow speed, but sends robots to the average of
 % their goal points to protect against noise and jitteriness
-S.runTime = 2;
+S.runTime = 10;
 
 if matlabpool('size') == 0 % checking to see if my pool is already open
     matlabpool open % can do more on computer with more cores
@@ -82,7 +86,7 @@ if strcmp(S.shape,'circle') == true
 end
 if strcmp(S.shape,'sphere') == true
     hold on
-angle=0:0.1:2*pi;
+    angle=0:0.1:2*pi;
     x=S.radius*cos(angle);
     y=S.radius*sin(angle);
     plot3(x,y,zeros(length(x)));
@@ -142,22 +146,36 @@ ylabel('angular');
 %}
 
 %%
-%{
-for i=1:length(S.storeMeas)
-    K = S.storeMeas{i};
+% generate a graph of the information entropy of the area being surveyed as
+% a function of time
+
+t = m.get_history(1,'state_times');
+
+% take the state history
+for i=1:S.n_robots
+    X(i,:) = m.get_history(i,'x');
+    Y(i,:) = m.get_history(i,'y');
+    Z(i,:) = m.get_history(i,'z');
+end
+K = zeros(0,4);
+entropyList = 0;
+for i=1:length(t)
+    for k=1:S.n_robots
+        K = [K; X(k,i) Y(k,i) Z(k,i) t(i)];
+    end
+           
     meas = zeros(0,4);
-for j=1:length(K(:,1))
-    meas(mod(j,45)+1,:) = K(j,:);
-end
-meas
+    % truncate state history
+    for j=1:length(K(:,1))
+        meas(mod(j,45)+1,:) = K(j,:);
+    end
 
-S.entropyList = [S.entropyList; S.determineEntropy(meas, S.storeT(i))];
+entropyList = [entropyList; S.determineEntropy(meas, t(i))];
 
 end
-c = m.get_history(1,'state_times');
-n = [S.entropyList];
+n = [entropyList];
 figure
-plot(c, n);
+plot([0 t], n);
 xlabel('time');
 ylabel('entropic information');
 %}
@@ -181,22 +199,8 @@ parfor i=1:length(x)
 end
 HeatMap(1 - B);
 
-S.measurements = [0 0 0 0; 0 .02 0 0];
-S.D = inv(S.fieldGen(S.measurements));
-t = 0;
-B=zeros(81,81);
-x = -1:.025:1;
-y = -1:.025:1;
-parfor i=1:length(x)
-    Btemp = zeros(81,81);
-    for j=1:length(y)
-        Btemp(j,i) = S.timeUncertaintyField(x(i), y(j), 0, 0, S.measurements, S.D);
-    end
-    B = B + Btemp;
-end
-HeatMap(1 - B);
 %}
-      
+
 
 
 
