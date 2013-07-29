@@ -2,10 +2,10 @@ classdef field < handle
     %Class to run voronoi and gradient based symmetric searchs
     
     properties
-        sigma = .3;        % time constant for spatial separation of measurements
+        sigma = .2;        % time constant for spatial separation of measurements
         tau = .8;          % time constant for temporal separation of measurements
         mu = .1;          % uncertainty in measurements, a characteristic of the sensors
-        gamma = .1;        % radius over which a gradient is determined for motion
+        gamma = .08;        % radius over which a gradient is determined for motion
         timeToDelete = 3;  % the number of time steps robot positions are saved for
         gridSize = -1:.2:1;% the grid size used for the voronoi control law
         zGridSize = 0;     % the z grid size used for the voronoi control law
@@ -37,7 +37,7 @@ classdef field < handle
         measurements = zeros(0,4); % retains matrix of past positions
         robots = zeros(0,4);       % stores current positions of robots
         g = 0;             % counter used in overwriting old measurements
-        origin = [0 0 0];  % center which is treated as the origin
+        origin = [0 -0.5 0];  % center which is treated as the origin
         
     end
     
@@ -560,27 +560,35 @@ classdef field < handle
             % determines the information entropy of the area being searched
             % at a given time
             
+            % find the covariance matrix
             D = inv(obj.fieldGen(measurements));
             
             p=0;
             H = 0;
-            x = -1.5:.1:1.5;
-            y = -1.5:.1:1.5;
+            x = -1.5*obj.radius:.15*obj.radius:1.5*obj.radius;
+            y = -1.5*obj.radius:.15*obj.radius:1.5*obj.radius;
             Htemp = zeros(1,length(x));
             pTemp = zeros(1,length(x));
+            
+            % sum the uncertainties within the region covered
             parfor i=1:length(x)
                 for j=1:length(y)
-                    
-                    if inpolygon(x(i),y(j),obj.polygon(:,1),obj.polygon(:,2)) == 1
-                        Htemp(i) = Htemp(i) + obj.timeUncertaintyField(x(i), y(j), 0, t, measurements, D)
+                    if inpolygon(x(i), y(j), obj.polygon(:,1), ...
+                            obj.polygon(:,2)) == 1
+                        
+                        Htemp(i) = Htemp(i) + obj.timeUncertaintyField(x(i),...
+                            y(j), 0, t, measurements, D)
+                        
                         pTemp(i) = pTemp(i)+1;
                     end
                 end
                 
             end
-            H = H + sum(Htemp);
-            p = p + sum(pTemp);
+            H = H + sum(Htemp)
+            p = p + sum(pTemp)
             
+            % for discretized area, divide the sum by the total number of
+            % points
             entropy = 1-H/p;
         end
         
@@ -801,6 +809,18 @@ classdef field < handle
             obj.remove(); % removes old measurements
             
             
+        end
+        
+        function [] = twoRobotsCircle(obj)
+            obj.sigma = .1;      % time constant for spatial separation of measurements
+        obj.tau = 1;       % time constant for temporal separation of measurements
+        obj.mu = .15;        % uncertainty in measurements, a characteristic of the sensors
+        obj.gamma = .1;      % radius over which a gradient is determined for motion
+        obj.timeToDelete = 4; % number of time steps after which a robot deletes the other's old positions
+        obj.k1 = 1;          % coefficient for forward velocity in control law
+        obj.k2 = 1;          % coefficient for angular velocity in control law
+        obj.k3 = 1;          % coefficient for z velocity in control law
+        obj.origin = [0 -.50 0];% movable center which is treated as the origin
         end
     end
     

@@ -2,20 +2,20 @@ classdef streamedField < handle
     %Class to run voronoi and gradient based symmetric searchs
     
     properties
-        sigma = .3;      % time constant for spatial separation of measurements
-        tau = 1;       % time constant for temporal separation of measurements
-        mu = .15;        % uncertainty in measurements, a characteristic of the sensors
-        gamma = .1;      % radius over which a gradient is determined for motion
-        timeToDeleteSelf = 5; % number of time steps after which a robot deletes its own old positions
+        sigma = .2;        % time constant for spatial separation of measurements
+        tau = .8;          % time constant for temporal separation of measurements
+        mu = .1;          % uncertainty in measurements, a characteristic of the sensors
+        gamma = .08;      % radius over which a gradient is determined for motion
+        timeToDeleteSelf = 7; % number of time steps after which a robot deletes its own old positions
         timeToDeleteOther = 2; % number of time steps after which a robot deletes the other's old positions
         runTime;         % how many seconds the Miabots will run for
         n_robots;        % number of robots
-        k1 = 4;          % coefficient for forward velocity in control law
+        k1 = 1;          % coefficient for forward velocity in control law
         k2 = 1;          % coefficient for angular velocity in control law
         k3 = 1;          % coefficient for z velocity in control law
         % matrix of covariances between measurements
-        radius = 3;      % distance to edge of survey area from origin
-        origin = [0 0 0];% movable center which is treated as the origin
+        radius = .5;      % distance to edge of survey area from origin
+        origin = [0 -0.5 0];% movable center which is treated as the origin
         
         shape = 'triangle'
         % shape of the boundary area. Currently accepted are circle,
@@ -386,28 +386,38 @@ classdef streamedField < handle
             
             p=0;
             H = 0;
-            x = -1.5*obj.radius:.15*obj.radius:1.5*obj.radius;
-            y = -1.5*obj.radius:.15*obj.radius:1.5*obj.radius;
-            Htemp = zeros(1,length(x));
-            pTemp = zeros(1,length(x));
+            x = -1.5*obj.radius:.1*obj.radius:1.5*obj.radius;
+            y = -1.5*obj.radius:.1*obj.radius:1.5*obj.radius;
+            Htemp = zeros(length(x));
+            pTemp = zeros(length(x));
             
             % sum the uncertainties within the region covered
             parfor i=1:length(x)
-                for j=1:length(y)
+                n = zeros(1,length(x));
+                for j=1:length(x)
                     if inpolygon(x(i), y(j), obj.polygon(:,1), ...
                             obj.polygon(:,2)) == 1
                         
-                        Htemp(i) = Htemp(i) + obj.timeUncertaintyField(x(i),...
+                        n(j) = obj.timeUncertaintyField(x(i),...
                             y(j), 0, t, measurements, D)
                         
                         pTemp(i) = pTemp(i)+1;
+                       
                     end
+                    Htemp(i,:) = n;
                 end
                 
             end
             H = H + sum(Htemp);
             p = p + sum(pTemp);
-            
+            for i=1:length(x)
+                for j=1:length(x)
+                    if Htemp(i,j) == 0
+                        Htemp(i,j) = 1;
+                    end
+                end
+            end
+            HeatMap(Htemp);
             % for discretized area, divide the sum by the total number of
             % points
             entropy = 1-H/p;
@@ -467,6 +477,32 @@ classdef streamedField < handle
                 
                 
             end
+        end
+        
+        function [] = twoRobotsCircle(obj)
+            obj.sigma = .1;      % time constant for spatial separation of measurements
+        obj.tau = 1;       % time constant for temporal separation of measurements
+        obj.mu = .15;        % uncertainty in measurements, a characteristic of the sensors
+        obj.gamma = .1;      % radius over which a gradient is determined for motion
+        obj.timeToDeleteSelf = 7; % number of time steps after which a robot deletes its own old positions
+        obj.timeToDeleteOther = 2; % number of time steps after which a robot deletes the other's old positions
+        obj.k1 = 1;          % coefficient for forward velocity in control law
+        obj.k2 = 1;          % coefficient for angular velocity in control law
+        obj.k3 = 1;          % coefficient for z velocity in control law
+        obj.origin = [0 -.50 0];% movable center which is treated as the origin
+        end
+        
+        function [] = twoRobotsSquare
+          obj.sigma = .2;        % time constant for spatial separation of measurements
+        obj.tau = .8;          % time constant for temporal separation of measurements
+        obj.mu = .1;          % uncertainty in measurements, a characteristic of the sensors
+        obj.gamma = .08;      % radius over which a gradient is determined for motion
+        obj.timeToDeleteSelf = 7; % number of time steps after which a robot deletes its own old positions
+        obj.timeToDeleteOther = 2; % number of time steps after which a robot deletes the other's old positions
+       
+        obj.k1 = 1;          % coefficient for forward velocity in control law
+        obj.k2 = 1;          % coefficient for angular velocity in control law
+        obj.k3 = 1;          % coefficient for z velocity in control law  
         end
     end
     

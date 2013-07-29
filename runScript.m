@@ -3,13 +3,13 @@ clear all
 
 % select initial conditions for the robots, some examples are given here
 % two robot setup:
-%init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
+init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
 
 % three robot setup:
 %init = [sqrt(3)/20 -.05 0 0; -sqrt(3)/20 -.05 0 -2*pi/3; 0 .1 0 2*pi/3];
 
 %four robot setup:
-init = [0 .5 0 .3; .5 0 0 -pi/2 + .3; 0 -.5 0 pi+.3; -.5 0 0 pi/2 + .3];
+%init = [0 .5 0 .3; .5 0 0 -pi/2 + .3; 0 -.5 0 pi+.3; -.5 0 0 pi/2 + .3];
 
 % setup of 9 robots for hexagram described in paper
 %a = transpose(0:8);
@@ -19,7 +19,7 @@ init = [0 .5 0 .3; .5 0 0 -pi/2 + .3; 0 -.5 0 pi+.3; -.5 0 0 pi/2 + .3];
 % can adjust shape of survey area, default is triangular, with sphere,
 % circle, square, and custom being other options
 shape = 'square';
-radius = 1;
+radius = .5;
 % initialize the field object
 S = streamedField(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
 
@@ -93,10 +93,10 @@ if strcmp(S.shape,'sphere') == true
 end
 
 if strcmp(S.shape,'square') == true
-    line([-S.radius -S.radius], [-S.radius S.radius]);
-    line([-S.radius S.radius], [-S.radius -S.radius]);
-    line([S.radius S.radius], [-S.radius S.radius]);
-    line([S.radius -S.radius], [S.radius S.radius]);
+    line([-S.radius -S.radius]+[S.origin(1) S.origin(1)], [-S.radius S.radius]+[S.origin(2) S.origin(2)]);
+    line([-S.radius S.radius]+[S.origin(1) S.origin(1)], [-S.radius -S.radius]+[S.origin(2) S.origin(2)]);
+    line([S.radius S.radius]+[S.origin(1) S.origin(1)], [-S.radius S.radius]+[S.origin(2) S.origin(2)]);
+    line([S.radius -S.radius]+[S.origin(1) S.origin(1)], [S.radius S.radius]+[S.origin(2) S.origin(2)]);
 end
 
 if strcmp(S.shape,'custom') == true
@@ -106,7 +106,7 @@ end
 %legend('Robot 1', 'Robot 2');
 %axis square;
 
-
+%{
 % plots x vs t, y vs t, z vs t, and theta vs t
 figure
 for i=1:S.n_robots
@@ -143,14 +143,14 @@ ylabel('angular');
 %%
 % generate a graph of the information entropy of the area being surveyed as
 % a function of time
-%{
-t = m.get_history(1,'state_times');
 
+t = m.get_history(1,'state_times');
+figure
 % take the state history
 for i=1:S.n_robots
-    X(i,:) = m.get_history(i,'x');
-    Y(i,:) = m.get_history(i,'y');
-    Z(i,:) = m.get_history(i,'z');
+    X(i,:) = m.get_history(i,'x') - S.origin(1);
+    Y(i,:) = m.get_history(i,'y') - S.origin(2);
+    Z(i,:) = m.get_history(i,'z') - S.origin(3);
 end
 K = zeros(0,4);
 entropyList = 0;
@@ -161,15 +161,14 @@ for i=1:length(t)
            
     meas = zeros(0,4);
     % truncate state history
-    for j=1:length(K(:,1))
-        meas(mod(j,60)+1,:) = K(j,:);
+    for j=0:length(K(:,1))-1
+        meas(mod(j,40)+1,:) = K(j+1,:);
     end
 
 entropyList = [entropyList; S.determineEntropy(meas, t(i))];
 
 end
 n = entropyList;
-figure
 
 plot([0 t], n);
 xlabel('time');
