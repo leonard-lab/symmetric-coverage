@@ -3,18 +3,18 @@ classdef streamedField < handle
     
     properties
         sigma = .3;      % time constant for spatial separation of measurements
-        tau = .8;        % time constant for temporal separation of measurements
+        tau = 1;       % time constant for temporal separation of measurements
         mu = .15;        % uncertainty in measurements, a characteristic of the sensors
         gamma = .1;      % radius over which a gradient is determined for motion
-        timeToDeleteSelf = 6; % number of time steps after which a robot deletes its own old positions
+        timeToDeleteSelf = 5; % number of time steps after which a robot deletes its own old positions
         timeToDeleteOther = 2; % number of time steps after which a robot deletes the other's old positions
         runTime;         % how many seconds the Miabots will run for
         n_robots;        % number of robots
-        k1 = 2;          % coefficient for forward velocity in control law
+        k1 = 4;          % coefficient for forward velocity in control law
         k2 = 1;          % coefficient for angular velocity in control law
         k3 = 1;          % coefficient for z velocity in control law
         % matrix of covariances between measurements
-        radius = 1;      % distance to edge of survey area from origin
+        radius = 3;      % distance to edge of survey area from origin
         origin = [0 0 0];% movable center which is treated as the origin
         
         shape = 'triangle'
@@ -30,9 +30,9 @@ classdef streamedField < handle
         measurements = zeros(0,4,0); % stores the locations in space and time of robots
         robots = zeros(0,4);         % stores the current location of the robots
         
-        % counters used to overwrite old data in measurements
-        g = 0;
-        h = 0;
+        
+        g = 0;           % counter used to overwrite old data in self measurements
+        h = 0;           % counter used to overwrite old data in other measurements
         
         selfMeasurements = zeros(0,4,0);
         otherMeasurements = zeros(0,4,0);
@@ -40,7 +40,7 @@ classdef streamedField < handle
     
     methods
         
-        function obj = streamedField(n)
+        function obj = streamedField(n, shape, radius)
             % generates a new field object
             obj.n_robots = n;
             % initialize sensors
@@ -48,7 +48,20 @@ classdef streamedField < handle
                 obj.robots(i,:) = [0 0 0 0];
             end
             obj.h = zeros(1,n);
-            
+            obj.radius = radius;
+            obj.shape = shape;
+            if strcmp(obj.shape,'triangle') == 1
+                obj.polygon = obj.radius .* [sqrt(3)/2 -.5; -sqrt(3)/2 -.5; 0 1];
+            elseif strcmp(obj.shape,'square') == 1
+                obj.polygon = [obj.radius obj.radius; obj.radius -obj.radius;...
+                    -obj.radius -obj.radius; -obj.radius obj.radius];
+            elseif strcmp(obj.shape, 'circle') == 1
+                angle=0:0.01:2*pi;
+                x=obj.radius*cos(angle);
+                y=obj.radius*sin(angle);
+                
+                obj.polygon = [transpose(x) transpose(y)];
+            end
         end
         
         function [ commands ] = control_law(obj, t, states)
@@ -80,9 +93,6 @@ classdef streamedField < handle
             for i=1:obj.n_robots
                 obj.measurements(:,:,i) = [obj.selfMeasurements(:,:,i); obj.otherMeasurements(:,:,i)];
             end
-            obj.D = zeros(length(obj.measurements(:,1)) + 1, length(obj.measurements(:,1)) + 1);
-            obj.D(1:end-1,1:end-1) = obj.fieldGen(obj.measurements);
-            
             
             % calculates each robot individually, per the actual control
             % law
@@ -92,62 +102,9 @@ classdef streamedField < handle
                 covariance(1:end-1,1:end-1) = obj.fieldGen(obj.measurements(:,:,i));
                 measurements = obj.measurements(:,:,i);
                 
-                Goals(i,:) = obj.bestDirection(obj.robots(i,:), states(i,6),measurements,covariance);
-                
-                
+                Goals(i,:) = obj.bestDirection(obj.robots(i,:), states(i,6),measurements,covariance); 
             end
-            %for i=1:obj.n_robots
-            %    Goals(i,1:2)*[cos(2*(i-1)*pi/(obj.n_robots)) sin(2*(i-1)*pi/(obj.n_robots)); -sin(2*(i-1)*pi/(obj.n_robots)) cos(2*(i-1)*pi/(obj.n_robots))]
-            %end
-            if obj.t < .15
-                for i=1:obj.n_robots
-                    commands(i,:) = [.2 0 0];
-                end
-            else
-                % Get current states of the robot, x,y,z,heading, and
-                % velocities
-                
-                x = states(:,1);
-                y = states(:,2);
-                z = states(:,3);
-                v_x = states(:,4);
-                v_y = states(:,5);
-                theta = states(:,6);
-                theta_dot = states(:,7);
-                
-                xgoal = Goals(:,1)+obj.origin(1);
-                ygoal = Goals(:,2)+obj.origin(2);
-                zgoal = Goals(:,3)+obj.origin(3);
-                
-                
-                % angle that the current heading is displaced from desired
-                % heading
-                phi = wrapToPi(atan2(ygoal-y,xgoal-x)-theta);
-                
-                % if statement to determine control laws for angular
-                % velocity
-                for i=1:length(phi)
-                    if (phi(i) <= pi/2) && (phi(i) >= -pi/2)
-                        u_theta(i,1) = (obj.k2)*sin(phi(i));
-                    else
-                        u_theta(i,1) = -(obj.k2)*sin(phi(i));
-                    end
-                end
-                r = ((xgoal-x).^2+(ygoal-y).^2).^.5; % distance to goal
-                % position
-                
-                
-                
-                % control law for forward velocity
-                u_x = ((obj.k1).*r.*cos(phi));
-                
-                u_z = (obj.k3).*(zgoal-z);
-                
-                % pass forward velocity and angular velocity to the command
-                % matrix
-                commands = [u_x u_theta u_z];
-            end
-            
+            commands = obj.commandGen(states, Goals);
             %states
             %commands
             obj.q = obj.q + 1;
@@ -429,8 +386,8 @@ classdef streamedField < handle
             
             p=0;
             H = 0;
-            x = -1.5:.1:1.5;
-            y = -1.5:.1:1.5;
+            x = -1.5*obj.radius:.15*obj.radius:1.5*obj.radius;
+            y = -1.5*obj.radius:.15*obj.radius:1.5*obj.radius;
             Htemp = zeros(1,length(x));
             pTemp = zeros(1,length(x));
             
@@ -454,6 +411,62 @@ classdef streamedField < handle
             % for discretized area, divide the sum by the total number of
             % points
             entropy = 1-H/p;
+        end
+        
+        function [ commands ] = commandGen(obj, states, Goals)
+            % generates commands for the Miabots based on their goal points
+            
+            % send robots along their current heading at start
+            if obj.t < .15
+                for i=1:obj.n_robots
+                    commands(i,:) = [.2 0 0];
+                end
+            else
+                % Get current states of the robot, x,y,z,heading, and
+                % velocities
+                
+                x = states(:,1);
+                y = states(:,2);
+                z = states(:,3);
+                v_x = states(:,4);
+                v_y = states(:,5);
+                theta = states(:,6);
+                theta_dot = states(:,7);
+                
+                xgoal = Goals(:,1)+obj.origin(1);
+                ygoal = Goals(:,2)+obj.origin(2);
+                zgoal = Goals(:,3)+obj.origin(3);
+                
+                
+                % angle that the current heading is displaced from desired
+                % heading
+                phi = wrapToPi(atan2(ygoal-y,xgoal-x)-theta);
+                
+                % if statement to determine control laws for angular
+                % velocity
+                for i=1:length(phi)
+                    if (phi(i) <= pi/2) && (phi(i) >= -pi/2)
+                        u_theta(i,1) = (obj.k2)*sin(phi(i));
+                    else
+                        u_theta(i,1) = -(obj.k2)*sin(phi(i));
+                    end
+                end
+                r = ((xgoal-x).^2+(ygoal-y).^2).^.5; % distance to goal
+                % position
+                
+                
+                
+                % control law for forward velocity
+                u_x = ((obj.k1).*r.*cos(phi));
+                
+                u_z = (obj.k3).*(zgoal-z);
+                
+                % pass forward velocity and angular velocity to the command
+                % matrix
+                commands = [u_x u_theta u_z];
+                
+                
+            end
         end
     end
     

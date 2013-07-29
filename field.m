@@ -4,7 +4,7 @@ classdef field < handle
     properties
         sigma = .3;        % time constant for spatial separation of measurements
         tau = .8;          % time constant for temporal separation of measurements
-        mu = .15;          % uncertainty in measurements, a characteristic of the sensors
+        mu = .1;          % uncertainty in measurements, a characteristic of the sensors
         gamma = .1;        % radius over which a gradient is determined for motion
         timeToDelete = 3;  % the number of time steps robot positions are saved for
         gridSize = -1:.2:1;% the grid size used for the voronoi control law
@@ -43,7 +43,7 @@ classdef field < handle
     
     methods
         
-        function obj = field(n)
+        function obj = field(n, shape, radius)
             % generates a new field object
             obj.n_robots = n;
             
@@ -51,7 +51,20 @@ classdef field < handle
             for i=1:obj.n_robots
                 obj.robots(i,:) = [0 0 0 0];
             end
-            
+            obj.radius = radius;
+            obj.shape = shape;
+            if strcmp(obj.shape,'triangle') == 1
+                obj.polygon = obj.radius .* [sqrt(3)/2 -.5; -sqrt(3)/2 -.5; 0 1];
+            elseif strcmp(obj.shape,'square') == 1
+                obj.polygon = [obj.radius obj.radius; obj.radius -obj.radius;...
+                    -obj.radius -obj.radius; -obj.radius obj.radius];
+            elseif strcmp(obj.shape, 'circle') == 1
+                angle=0:0.01:2*pi;
+                x=obj.radius*cos(angle);
+                y=obj.radius*sin(angle);
+                
+                obj.polygon = [transpose(x) transpose(y)];
+            end
         end
         
         function [ commands ] = control_law(obj, t, states)
