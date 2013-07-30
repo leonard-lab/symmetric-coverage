@@ -1,47 +1,175 @@
 classdef streamedField < handle
-    %Class to run voronoi and gradient based symmetric searchs
+    % This class runs gradient based search descriped in the symmetric 
+    % coverage paper, using the Miabots class. The user must provide a 
+    % runtime, a shape of the area to be searched, and initial positions.
+    %
+    % Summary provided below. More help can be found by typing doc field
+    % or help field.method_name.
+    %
+    % SYNTAX
+    %
+    % S = streamedField(length(init(:,1)), shape, radius);
+    %
+    % INPUTS
+    % init: n_robots X [x y z theta] matrix containing the initial
+    % positions and headings of the robots.
+    %
+    % radius: the distance from the origin of the area being surveyed,
+    % radius of the circle or sphere, distance to midpoints of lines on
+    % square, and distance to vertices of triangle
+    % 
+    % shape: 'circle', 'triangle', 'square', 'sphere', or 'custom', these
+    % determine the area being surveyed. NOTE: at present custom only
+    % supports 2 dimensional areas
+    %
+    % run_time: Time in seconds to run the system or simulation. Provide
+    % Inf to run system indefinitely (run mode only).
+    %
+    % 'sim': Logical. Default: false. true to simulate dynamics in MATLAB.
+    % false to run ROS.
+    %
+    % 'sim_noise': Length 4 Vector. Default: [0 0 0 0]. Standard deviation
+    % of the random gaussian noise applied to [x y z theta] measuremente
+    % estimates during simulation.
+    %
+    % PROPERTIES
+    %
+    %    sigma: constant for spatial separation of measurements
+    %
+    %    tau: time constant for temporal separation of measurements
+    %
+    %    mu: uncertainty in measurements, a characteristic of the sensors
+    %
+    %    gamma: radius over which a gradient is determined for motion
+    %
+    %    timeToDelete: the number of time steps robot positions are saved for
+    %
+    %    runTime: how many seconds the Miabots will run for
+    %
+    %    n_robots: number of robots
+    %
+    %    k1: coefficient for forward velocity in control law
+    %
+    %    k2: coefficient for angular velocity in control law
+    %
+    %    k3: coefficient for z velocity in control law
+    %
+    %    radius = 1;        % distance to edge of survey area
+    %    
+    %    shape: shape of the boundary area. Currently accepted are circle,
+    %    square, triangle, and custom.
+    %    
+    %    precision: number of spots considered for goal points
+    %
+    %    t: current time
+    %
+    %    tPast: previous time
+    %
+    %    D: matrix of covariances between measurements
+    %
+    %    polygon: vertices for a custom shape 
+    %
+    %    robots: stores current positions of robots
+    %
+    %    origin: center of the survey area, which is treated as the origin
+    %
+    %    timeToDeleteSelf: number of time steps after which a robot deletes
+    %    its own old positions
+    %
+    %    timeToDeleteOther: number of time steps after which a robot 
+    %    deletes its record of the other robots' positions
+    %
+    %    selfMeasurements: stores a matrix of each robot's past locations
+    %
+    %    otherMeasurements: stores a matrix for each robot, consisting of
+    %    the other robots' past locations
+    %
+    %    firstStepTime: time for which the robots move staight along heading
+    %
+    %    firstStepSpeed: speed that the robots move at for the first step
+    %
+    % METHODS
+    %
+    %   field: generates a new field object
+    %
+    %   control_law: gradient control law which views gamma-close spots
+    %   to a sensor and directs a Miabot to the best location, according
+    %   to the law written in the symmetric coverage paper
+    %
+    %   fieldGen: generates the covariance between two
+    %   measurement points, and returns a matrix of all these covariances
+    %
+    %   bestDirection: used in the gradient control
+    %   law, determines what direction the robot should move in, and 
+    %   returns its corrdinates
+    %
+    %   uncertaintyCalculate: Calculates the net uncertainty field at a
+    %   given point in time, used within timeUncertaintyField
+    %
+    %   timeUncertaintyField: generates the uncertainty at a given place
+    %   in space and time, used in the gradient control law
+    %
+    %   locationTest: tests a point to see how much cumulative uncertainty
+    %   moving to it would leave behind on the other gamma close points
+    %
+    %   finishCovariance: calculates the covariances of the new measurement
+    %   with all previous ones, and combines this with the previously found
+    %   matrix
+    %
+    %   commandGen: generates commands for the Miabots based on their goal
+    %   points and the coefficients for the control law
+    %
+    %   determineEntropy: determines the information entropy of the area
+    %   being searched at a given time
+    %
+    %   combineMeasurements: combines self and other measurements for each
+    %   robot
+    %
+    %   twoRobotsCircle: sets the properties used for the demo of two
+    %   robots in a circular survey area
+    % 
+    %   twoRobotsSquare(obj): sets the properties used for the demo of two
+    %   robots in a square survey area 
     
     properties
-        sigma = .2;        % time constant for spatial separation of measurements
-        tau = .8;          % time constant for temporal separation of measurements
-        mu = .1;          % uncertainty in measurements, a characteristic of the sensors
-        gamma = .08;      % radius over which a gradient is determined for motion
-        timeToDeleteSelf = 7; % number of time steps after which a robot deletes its own old positions
-        timeToDeleteOther = 2; % number of time steps after which a robot deletes the other's old positions
-        runTime;         % how many seconds the Miabots will run for
-        n_robots;        % number of robots
-        k1 = 1;          % coefficient for forward velocity in control law
-        k2 = 1;          % coefficient for angular velocity in control law
-        k3 = 1;          % coefficient for z velocity in control law
-        % matrix of covariances between measurements
-        radius = .5;      % distance to edge of survey area from origin
-        origin = [0 -0.5 0];% movable center which is treated as the origin
+        sigma = .2;            % time constant for spatial separation of measurements
+        tau = .8;              % time constant for temporal separation of measurements
+        mu = .1;               % uncertainty in measurements, a characteristic of the sensors
+        gamma = .08;           % radius over which a gradient is determined for motion
+        timeToDeleteSelf = 7;  % number of time steps after which a robot deletes its own old positions
+        timeToDeleteOther = 2; % number of time steps after which a robot deletes its record of the other robots' positions
+        runTime;               % how many seconds the Miabots will run for
+        n_robots;              % number of robots
+        k1 = 1;                % coefficient for forward velocity in control law
+        k2 = 1;                % coefficient for angular velocity in control law
+        k3 = 1;                % coefficient for z velocity in control law
+        radius = .5;           % distance to edge of survey area from origin
+        origin = [0 -0.5 0];   % movable center which is treated as the origin
+        shape = 'triangle'     % shape of the boundary area. Currently accepted are circle, square, triangle, and custom.
+        precision = 6;         % number of spots considered for goal points
+        t;                     % current time
+        tPast = -.07;          % previous time
+        D;                     % stores the covariance field for some versions of the control law
+        polygon;               % vertices for a custom shape
+        firstStepTime = .15    % time for which the robots move staight along heading
+        firstStepSpeed = .2    % speed that the robots move at for the first step
         
-        shape = 'triangle'
-        % shape of the boundary area. Currently accepted are circle,
-        % square, triangle, and custom.
+        robots = zeros(0,4);             % stores the current location of the robots
+        selfMeasurements = zeros(0,4,0); % stores a matrix of each robot's past locations
+        otherMeasurements = zeros(0,4,0);% stores a matrix for each robot, consisting of the other robots' past locations
+    end
+    
+    properties (GetAccess = private)
+        g = 0;   % counter used to overwrite old data in self measurements
+        h = 0;   % counter used to overwrite old data in other measurements
         
-        precision = 6;  % number of spots considered for goal points
-        t;               % current time
-        tPast = -.07;    % previous time
-        D;               % stores the covariance field for some versions of the control law
-        polygon;         % vertices for a custom shape
-        q = 0;           % counter used in fast runspeed to determine leader
-        measurements = zeros(0,4,0); % stores the locations in space and time of robots
-        robots = zeros(0,4);         % stores the current location of the robots
-        
-        
-        g = 0;           % counter used to overwrite old data in self measurements
-        h = 0;           % counter used to overwrite old data in other measurements
-        
-        selfMeasurements = zeros(0,4,0);
-        otherMeasurements = zeros(0,4,0);
     end
     
     methods
         
         function obj = streamedField(n, shape, radius)
             % generates a new field object
+            
             obj.n_robots = n;
             % initialize sensors
             for i=1:obj.n_robots
@@ -65,8 +193,18 @@ classdef streamedField < handle
         end
         
         function [ commands ] = control_law(obj, t, states)
-            % gradient control law which views gamma-close spots to a
-            % sensor and directs a Miabot to the best location
+            % CONTROL_LAW gradient control law which views gamma-close spots
+            % to a sensor and directs a Miabot to the best location,
+            % according to the law written in the symmetric coverage paper
+            %
+            % SYNOPSIS [ commands ] = control_law(obj, t, states)
+            %
+            % INPUT obj: the object
+            % t: the current time
+            % states: the current n_robots X 7 matrix of the robots' states
+            %
+            % OUTPUT commands: n_robots X 3 matrix of commands for the
+            % robots
             
             obj.t = t;
             
@@ -87,34 +225,36 @@ classdef streamedField < handle
                     end
                 end
             end
-            obj.g = obj.g+1;
-            obj.measurements = zeros(length(obj.selfMeasurements(:,1,1))+length(obj.otherMeasurements(:,1,1)),4,obj.n_robots);
             
-            for i=1:obj.n_robots
-                obj.measurements(:,:,i) = [obj.selfMeasurements(:,:,i); obj.otherMeasurements(:,:,i)];
-            end
+            
+            positions = obj.combineMeasurements();
             
             % calculates each robot individually, per the actual control
             % law
             
             parfor i=1:obj.n_robots
-                covariance = zeros(length(obj.measurements(:,1,i)) + 1, length(obj.measurements(:,1,i)) + 1);
-                covariance(1:end-1,1:end-1) = obj.fieldGen(obj.measurements(:,:,i));
-                measurements = obj.measurements(:,:,i);
+                covariance = zeros(length(positions(:,1,i)) + 1);
+                covariance(1:end-1,1:end-1) = obj.fieldGen(positions(:,:,i));
+                measurements = positions(:,:,i);
                 
-                Goals(i,:) = obj.bestDirection(obj.robots(i,:), states(i,6),measurements,covariance); 
+                Goals(i,:) = obj.bestDirection(obj.robots(i,:), states(i,6),measurements,covariance);
             end
             commands = obj.commandGen(states, Goals);
-            %states
-            %commands
-            obj.q = obj.q + 1;
             obj.tPast = obj.t;
             
         end
         
-        function [ D ] = fieldGen(obj, measurements)
-            % generates the covariance between two measurement points, and
-            % returns a matrix of it
+        function [ covariances ] = fieldGen(obj, measurements)
+            % FIELDGEN generates the covariance between two measurement
+            % points, and returns a matrix of all these covariances
+            %
+            % SYNOPSIS [ covariances ] = fieldGen(obj, measurements)
+            %
+            % INPUT obj: the object
+            % measurements: the matrix of past and current robot positions
+            %
+            % OUTPUT covariances: the matrix of covariances between
+            % measurements
             
             C = zeros(length(measurements(:,1)), length(measurements(:,1)));
             for i=1:length(measurements(:,1))
@@ -130,26 +270,35 @@ classdef streamedField < handle
             end
             
             % adds the uncertainty of the sensors to their variance
-            D = C + obj.mu * eye(length(measurements(:,1)));
+            covariances = C + obj.mu * eye(length(measurements(:,1)));
             
         end
         
-        function [ F ] = bestDirection(obj, robots, theta, measurements,...
+        function [ goal ] = bestDirection(obj, robots, theta, measurements,...
                 covariance)
-            % used in the gradient control law, determines what direction
-            % the robot should move in
+            % BESTDIRECTION used in the gradient control law, determines
+            % what direction the robot should move in, and returns its
+            % corrdinates
+            %
+            % SYNOPSIS [ goal ] = bestDirection(obj, robots, theta)
+            %
+            % INPUT obj: the object
+            % robots: the matrix of current robot positions
+            % theta: the matrix of current robot headings
+            %
+            % OUTPUT goal: the objective (x,y,z) for each robot 
             
-            best = Inf(length(robots(:,1)),1); % tracks what direction
-                                               % would bring the most certainty
+            best = Inf; % tracks what direction
+            % would bring the most certainty
             
-            F = zeros(length(robots(:,1)),3);
+            goal = zeros(1,3);
             % array of angles to be checked
             
-            Ftemp = zeros(length(robots(:,1)), 3, obj.precision);
-            bestTemp = zeros(length(robots(:,1)),obj.precision);
+            goaltemp = zeros(1, 3, obj.precision);
+            bestTemp = zeros(1,obj.precision);
             
             dt = obj.t - obj.tPast; % we assume timesteps are equal
-                                    % and use this for the future step
+            % and use this for the future step
             
             % check each spot and determine their quality
             angle=theta+pi/(.5*obj.precision):pi/(.5*obj.precision):(2*pi+theta);
@@ -157,53 +306,62 @@ classdef streamedField < handle
                 i = obj.gamma * cos(angle(index));
                 j = obj.gamma * sin(angle(index));
                 k = 0;
-                for u=1:length(robots(:,1))
-                    [Ftemp(u,:,index),bestTemp(u,index)]...
-                        = obj.locationTest(robots(u,:), i, j, k, theta,...
-                        dt, measurements, covariance);
-                end
+                [goaltemp(1,:,index),bestTemp(1,index)]...
+                    = obj.locationTest(robots, i, j, k, theta,...
+                    dt, measurements, covariance);
                 
             end
             
             
             % pick the best direction to move in
-            for i=1:length(robots(:,1))
-                for index=1:obj.precision
+            for index=1:obj.precision
+                
+                if bestTemp(1,index) < best
+                    % take the better of the two positions
+                    best = bestTemp(1,index);
+                    goal(1,:) = goaltemp(1,:,index);
                     
-                    if bestTemp(i,index) < best(i)
-                        % take the better of the two positions
-                        best(i) = bestTemp(i,index);
-                        F(i,:) = Ftemp(i,:,index);
-                        
                     % if two spots tie, pick the first going
                     % counterclockwise from the current heading
-                    elseif bestTemp(i,index) == best(i)
-                        
-                        % theta1 and theta2 are the angles from the heading
-                        
-                        theta1 = wrapTo2Pi(atan2(Ftemp(i,2,index),...
-                            Ftemp(i,1,index)) - theta(i));
-                        
-                        
-                        
-                        theta2 = wrapTo2Pi(atan2(F(i,2)-robots(i,2),...
-                            F(i,1)-robots(i,1)) - theta(i));
-                        
-                        if theta1 < theta2
-                            F(i,:) = Ftemp(i,:,index);
-                            best(i) = bestTemp(i,index);
-                            
-                        end
+                elseif bestTemp(1,index) == best
+                    
+                    % theta1 and theta2 are the angles from the heading
+                    
+                    theta1 = wrapTo2Pi(atan2(goaltemp(1,2,index),...
+                        goaltemp(1,1,index)) - theta);
+                    
+                    
+                    
+                    theta2 = wrapTo2Pi(atan2(goal(1,2)-robots(1,2),...
+                        goal(1,1)-robots(1,1)) - theta);
+                    
+                    if theta1 < theta2
+                        goal(1,:) = goaltemp(1,:,index);
+                        best(1) = bestTemp(1,index);
                         
                     end
+                    
                 end
+                
             end
             
         end
         
         function [ Uncertainty ] = uncertaintyCalculate(obj, x, y, z, t, tempMeas, D)
-            % Calculates the net uncertainty field at a given point in
-            % time, used within timeUncertaintyField
+            % UNCERTAINTYCALCULATE Calculates the net uncertainty field at
+            % a given point in time, used within timeUncertaintyField
+            %
+            % SYNOPSIS [ uncertainty ] = uncertaintyCalculate(obj, x, y, z, t, tempMeas, D)
+            %
+            % INPUT obj: the object
+            % x,y,z,t: the location in space and time being considered
+            % tempMeas: the list of measurements which provide certainty to
+            % the point
+            % D: the inverse of the matrix of covariances between
+            % measurements
+            %
+            % OUTPUT uncertainty: the uncertainty of data at a point
+            
             M = 0;
             
             % compares all measurements to all other measurements
@@ -230,8 +388,19 @@ classdef streamedField < handle
         end
         
         function [ Uncertainty ] = timeUncertaintyField(obj, x, y, z, t, tempMeas, D)
-            % generates the uncertainty at a given place in space and time,
+            % TIMEUNCERTAINTYFIELD generates the uncertainty at a given place in space and time,
             % used in the gradient control law
+            %
+            % SYNOPSIS [ uncertainty ] = timeUncertaintyField(obj, x, y, z, t, tempMeas, D)
+            %
+            % INPUT obj: the object
+            % x,y,z,t: the location in space and time being considered
+            % tempMeas: the list of measurements which provide certainty to
+            % the point
+            % D: the inverse of the matrix of covariances between
+            % measurements
+            %
+            % OUTPUT uncertainty: the uncertainty of data at a point
             
             if strcmp(obj.shape,'triangle')==true
                 Uncertainty = zeros(1,length(x));
@@ -252,7 +421,7 @@ classdef streamedField < handle
                 end
                 % conditions for a circular region of search
             elseif strcmp(obj.shape,'circle') == true
-                Uncertainty = zeros(1,length(x)); 
+                Uncertainty = zeros(1,length(x));
                 for index=1:length(x)
                     %conditions for outside circle
                     if (x(index)^2 + (y(index))^2)^.5 > obj.radius
@@ -314,8 +483,21 @@ classdef streamedField < handle
         
         function [ F, b ] = locationTest(obj, robot, i, j, k, theta, dt,...
                 measurements, covariance)
-            % tests a point to see how much cumulative uncertainty moving
-            % to it would leave behind
+            % LOCATIONTEST tests a point to see how much cumulative uncertainty moving
+            % to it would leave behind on the other gamma close points
+            %
+            % SYNOPSIS [ F, b ] = locationTest(obj, robot, i, j, k, theta, dt)
+            %
+            % INPUT obj: the object
+            % robot: the robot whose motion is being evaluated
+            % i,j,k: the x,y,z increments being added while evaluating
+            % the point
+            % theta: the heading of the robot
+            % dt: the time step, as estimated by the previous time
+            %
+            % OUTPUT F: the point being considered
+            % b: the sum of uncertainty at gamma-close points if there were
+            % a measurements at F
             
             % generates a temporary matrix including the new test
             
@@ -347,10 +529,19 @@ classdef streamedField < handle
             
         end
         
-        function [ D ] = finishCovariance(obj, initialCovariance, tempMeas)
-            % calculates the covariances of the new measurement with all
+        function [ covariances ] = finishCovariance(obj, initialCovariance, tempMeas)
+            % FINISHCOVARIANCE calculates the covariances of the new measurement with all
             % previous ones, and combines this with the previously found
             % matrix
+            %
+            % SYNOPSIS [ covariances ] = finishCovariance(obj, covariance, tempMeas)
+            %
+            % INPUT obj: the object
+            % covariance: the matrix containing covariances of all but the
+            % last measurements
+            % tempMeas: the list of measurements
+            %
+            % OUTPUT covariances: the completed matrix of covariances
             
             % compute the last row and column of the covariance matrix
             B = zeros(length(tempMeas(:,1)), length(tempMeas(:,1)));
@@ -374,12 +565,21 @@ classdef streamedField < handle
             
             % combine with the original matrix
             B(end,end) = B(end,end) + obj.mu;
-            D = initialCovariance + B;
+            covariances = initialCovariance + B;
         end
         
         function [ entropy ] = determineEntropy(obj, measurements,t)
-            % determines the information entropy of the area being searched
+            % DETERMINEENTROPTY determines the information entropy of the area being searched
             % at a given time
+            %
+            % SYNOPSIS [ entropy ] = determineEntropy(obj, measurements,t)
+            %
+            % INPUT obj: the object
+            % measurements: the matrix of past and current robot states
+            % t: the time being considered
+            %
+            % OUTPUT entropy: the total information entropy of the survey
+            % area
             
             % find the covariance matrix
             D = inv(obj.fieldGen(measurements));
@@ -389,7 +589,7 @@ classdef streamedField < handle
             x = -1.5*obj.radius:.1*obj.radius:1.5*obj.radius;
             y = -1.5*obj.radius:.1*obj.radius:1.5*obj.radius;
             Htemp = zeros(length(x));
-            pTemp = zeros(length(x));
+            pTemp = zeros(1,length(x));
             
             % sum the uncertainties within the region covered
             parfor i=1:length(x)
@@ -402,34 +602,44 @@ classdef streamedField < handle
                             y(j), 0, t, measurements, D)
                         
                         pTemp(i) = pTemp(i)+1;
-                       
+                        
                     end
                     Htemp(i,:) = n;
                 end
                 
             end
-            H = H + sum(Htemp);
-            p = p + sum(pTemp);
-            for i=1:length(x)
-                for j=1:length(x)
-                    if Htemp(i,j) == 0
-                        Htemp(i,j) = 1;
-                    end
-                end
-            end
-            HeatMap(Htemp);
+            H = sum(sum(Htemp));
+            p = sum(pTemp);
+            %for i=1:length(x)
+            %    for j=1:length(x)
+            %        if Htemp(i,j) == 0
+            %            Htemp(i,j) = 1;
+            %        end
+            %    end
+            %end
+            %HeatMap(1 - Htemp);
             % for discretized area, divide the sum by the total number of
             % points
             entropy = 1-H/p;
         end
         
         function [ commands ] = commandGen(obj, states, Goals)
-            % generates commands for the Miabots based on their goal points
+            % COMMANDGEN generates commands for the Miabots based on their goal points
+            % and the coefficients for the control law
+            %
+            % SYNOPSIS [ commands ] = commandGen(obj, states, Goals))
+            %
+            % INPUT obj: the object
+            % states: the n_robots X 7 matrix of current robot positions
+            % Goals: the points the each robot is trying to get to
+            %
+            % OUTPUT commands: the n_robots X 3 matrix telling which tells
+            % the Miabots how to move
             
             % send robots along their current heading at start
-            if obj.t < .15
+            if obj.t < obj.firstStepTime
                 for i=1:obj.n_robots
-                    commands(i,:) = [.2 0 0];
+                    commands(i,:) = [obj.firstStepSpeed 0 0];
                 end
             else
                 % Get current states of the robot, x,y,z,heading, and
@@ -479,30 +689,57 @@ classdef streamedField < handle
             end
         end
         
-        function [] = twoRobotsCircle(obj)
-            obj.sigma = .1;      % time constant for spatial separation of measurements
-        obj.tau = 1;       % time constant for temporal separation of measurements
-        obj.mu = .15;        % uncertainty in measurements, a characteristic of the sensors
-        obj.gamma = .1;      % radius over which a gradient is determined for motion
-        obj.timeToDeleteSelf = 7; % number of time steps after which a robot deletes its own old positions
-        obj.timeToDeleteOther = 2; % number of time steps after which a robot deletes the other's old positions
-        obj.k1 = 1;          % coefficient for forward velocity in control law
-        obj.k2 = 1;          % coefficient for angular velocity in control law
-        obj.k3 = 1;          % coefficient for z velocity in control law
-        obj.origin = [0 -.50 0];% movable center which is treated as the origin
+        function [ positions ] = combineMeasurements(obj)
+            % COMBINEMEASUREMENTS combines self and other measurements for
+            % each robot
+            %
+            % SYNOPSIS [ positions ] = combineMeasurements(obj)
+            %
+            % INPUT obj: the object
+            %
+            % OUTPUT positions: the matrix of stored positions of robots
+            
+            obj.g = obj.g+1;
+            selfMeasSize = length(obj.selfMeasurements(:,1,1));
+            otherMeasSize = length(obj.otherMeasurements(:,1,1));
+            positions = zeros(selfMeasSize+otherMeasSize,4,obj.n_robots);
+            
+            for i=1:obj.n_robots
+                positions(:,:,i) = [obj.selfMeasurements(:,:,i); obj.otherMeasurements(:,:,i)];
+            end
         end
         
-        function [] = twoRobotsSquare
-          obj.sigma = .2;        % time constant for spatial separation of measurements
-        obj.tau = .8;          % time constant for temporal separation of measurements
-        obj.mu = .1;          % uncertainty in measurements, a characteristic of the sensors
-        obj.gamma = .08;      % radius over which a gradient is determined for motion
-        obj.timeToDeleteSelf = 7; % number of time steps after which a robot deletes its own old positions
-        obj.timeToDeleteOther = 2; % number of time steps after which a robot deletes the other's old positions
-       
-        obj.k1 = 1;          % coefficient for forward velocity in control law
-        obj.k2 = 1;          % coefficient for angular velocity in control law
-        obj.k3 = 1;          % coefficient for z velocity in control law  
+        function [] = twoRobotsCircle(obj)
+            % sets the properties used for the demo of two robots in a
+            % circular survey area
+            
+            obj.sigma = .1;      % time constant for spatial separation of measurements
+            obj.tau = .8;       % time constant for temporal separation of measurements
+            obj.mu = .1;        % uncertainty in measurements, a characteristic of the sensors
+            obj.gamma = .1;      % radius over which a gradient is determined for motion
+            obj.timeToDeleteSelf = 7; % number of time steps after which a robot deletes its own old positions
+            obj.timeToDeleteOther = 2; % number of time steps after which a robot deletes the other's old positions
+            obj.k1 = 1;          % coefficient for forward velocity in control law
+            obj.k2 = 1;          % coefficient for angular velocity in control law
+            obj.k3 = 1;          % coefficient for z velocity in control law
+            obj.origin = [0 -.50 0];% movable center which is treated as the origin
+        end
+        
+        function [] = twoRobotsSquare(obj)
+            % sets the properties used for the demo of two robots in a
+            % square survey area
+            
+            obj.sigma = .1;        % time constant for spatial separation of measurements
+            obj.tau = .8;          % time constant for temporal separation of measurements
+            obj.mu = .1;          % uncertainty in measurements, a characteristic of the sensors
+            obj.gamma = .08;      % radius over which a gradient is determined for motion
+            obj.timeToDeleteSelf = 7; % number of time steps after which a robot deletes its own old positions
+            obj.timeToDeleteOther = 2; % number of time steps after which a robot deletes the other's old positions
+            
+            obj.k1 = 1;          % coefficient for forward velocity in control law
+            obj.k2 = 1;          % coefficient for angular velocity in control law
+            obj.k3 = 1;          % coefficient for z velocity in control law
+            obj.origin = [0 -.50 0];% movable center which is treated as the origin
         end
     end
     

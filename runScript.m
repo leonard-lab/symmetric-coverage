@@ -1,6 +1,14 @@
-% this script will run the voronoi based control law
+% this script will run the gradient based control law
 clear all
 
+% can adjust shape of survey area, default is triangular, with sphere,
+% circle, square, and custom being other options
+shape = 'circle';
+radius = .5;
+runspeed = 'slow';
+runTime = 30;
+sim = true;
+noise = [0.000 0.000 0 0.000];
 % select initial conditions for the robots, some examples are given here
 % two robot setup:
 init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
@@ -16,12 +24,9 @@ init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
 %b = zeros(length(a),1);
 %init = [.25*cos(2*a*pi/9) -.25*sin(2*a*pi/9) b -2*a*pi/9];
 
-% can adjust shape of survey area, default is triangular, with sphere,
-% circle, square, and custom being other options
-shape = 'square';
-radius = .5;
 % initialize the field object
 S = streamedField(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
+S.twoRobotsCircle();
 
 % if shape is 'custom' polygon represents the vertices of the shape
 %S.polygon = [1 1; -1 1; -1 -1; 1 -1; 1 1];
@@ -31,14 +36,15 @@ S = streamedField(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, PO
 %    1/sqrt(12) -.5; 0 -1; -1/sqrt(12) -.5; -sqrt(3)/2 -.5; -sqrt(3)/3 0;
 %    -sqrt(3)/2 .5; -1/sqrt(12) .5; 0 1];
 
-%S.runspeed = 'fast';
+% S.runspeed = 'fast';
 % selects speed of the run, 'slow' computes each robot individually, but is
 % susceptible to noise, 'fast' alternates leader robots to speed up the
 % program, at the possible expense of accuracy, 'average_fast' runs
 % similarly to fast, but uses the average of each rotated position,
 % 'average_slow' runs at the slow speed, but sends robots to the average of
 % their goal points to protect against noise and jitteriness
-S.runTime = 30;
+
+S.runTime = runTime;
 
 if matlabpool('size') == 0 % checking to see if my pool is already open
     matlabpool open % can do more on computer with more cores
@@ -46,10 +52,10 @@ end
 
 % call control law for robot motion
 control_law = @(t,x) S.control_law(t,x);
-noise = [0.000 0.000 0 0.000];
+
 % calls new Miabot object that actuates robot motion
 m = Miabots(init, control_law, 'velocity', S.runTime,...
-    'sim', true);
+    'sim', sim, 'Sim_noise', noise);
 m.start
 
 %%
@@ -143,9 +149,9 @@ ylabel('angular');
 %%
 % generate a graph of the information entropy of the area being surveyed as
 % a function of time
-
+%{
 t = m.get_history(1,'state_times');
-figure
+
 % take the state history
 for i=1:S.n_robots
     X(i,:) = m.get_history(i,'x') - S.origin(1);
@@ -158,18 +164,18 @@ for i=1:length(t)
     for k=1:S.n_robots
         K = [K; X(k,i) Y(k,i) Z(k,i) t(i)];
     end
-           
+    
     meas = zeros(0,4);
     % truncate state history
     for j=0:length(K(:,1))-1
-        meas(mod(j,40)+1,:) = K(j+1,:);
+        meas(mod(j,60)+1,:) = K(j+1,:);
     end
-
-entropyList = [entropyList; S.determineEntropy(meas, t(i))];
-
+    
+    entropyList = [entropyList; S.determineEntropy(meas, t(i))];
+    
 end
 n = entropyList;
-
+figure
 plot([0 t], n);
 xlabel('time');
 ylabel('entropic information');

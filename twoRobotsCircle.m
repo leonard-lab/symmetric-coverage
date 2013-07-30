@@ -9,7 +9,7 @@ init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
 shape = 'circle';
 radius = .5;
 % initialize the field object
-S = streamedField(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
+S = field(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
 S.twoRobotsCircle();
 
 %S.runspeed = 'fast';
@@ -19,7 +19,7 @@ S.twoRobotsCircle();
 % similarly to fast, but uses the average of each rotated position,
 % 'average_slow' runs at the slow speed, but sends robots to the average of
 % their goal points to protect against noise and jitteriness
-S.runTime = 15;
+S.runTime = 30;
 
 if matlabpool('size') == 0 % checking to see if my pool is already open
     matlabpool open % can do more on computer with more cores
@@ -92,7 +92,7 @@ ylabel('angular');
 %%
 % generate a graph of the information entropy of the area being surveyed as
 % a function of time
-
+%{
 t = m.get_history(1,'state_times');
 
 % take the state history
