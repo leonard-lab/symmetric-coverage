@@ -36,7 +36,7 @@ S = field(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, R
 %    1/sqrt(12) -.5; 0 -1; -1/sqrt(12) -.5; -sqrt(3)/2 -.5; -sqrt(3)/3 0;
 %    -sqrt(3)/2 .5; -1/sqrt(12) .5; 0 1];
 
- S.runspeed = 'fast';
+ %S.runspeed = 'fast';
 % selects speed of the run, 'slow' computes each robot individually, but is
 % susceptible to noise, 'fast' alternates leader robots to speed up the
 % program, at the possible expense of accuracy, 'average_fast' runs
@@ -149,7 +149,7 @@ ylabel('angular');
 %%
 % generate a graph of the information entropy of the area being surveyed as
 % a function of time
-%{
+
 t = m.get_history(1,'state_times');
 
 % take the state history
@@ -171,7 +171,7 @@ for i=1:length(t)
         meas(mod(j,60)+1,:) = K(j+1,:);
     end
     
-    entropyList = [entropyList; S.determineEntropy(meas, t(i))];
+    entropyList = [entropyList; S.determineEntropy(meas, t(i),false)];
     
 end
 n = entropyList;
@@ -180,27 +180,4 @@ plot([0 t], n);
 xlabel('time');
 ylabel('entropic information');
 %}
-%%
-
-%{
-% generates a heatmap to show certainty at the end of the run
-S.measurements = [0 0 0 0];
-S.D = inv(S.fieldGen(S.measurements));
-t = 0;
-B=zeros(81,81);
-x = -1:.025:1;
-y = -1:.025:1;
-parfor i=1:length(x)
-    Btemp = zeros(81,81);
-    for j=1:length(y)
-        Btemp(j,i) = S.timeUncertaintyField(x(i), y(j), 0, 0, S.measurements, S.D);
-    end
-    B = B + Btemp;
-end
-HeatMap(1 - B);
-
-%}
-
-
-
 

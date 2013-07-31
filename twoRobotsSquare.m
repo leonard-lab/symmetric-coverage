@@ -49,10 +49,10 @@ end
 xlabel('X-position');
 ylabel('Y-position');
 
-    line([-S.radius -S.radius]+[S.origin(1) S.origin(1)], [-S.radius S.radius]+[S.origin(2) S.origin(2)]);
-    line([-S.radius S.radius]+[S.origin(1) S.origin(1)], [-S.radius -S.radius]+[S.origin(2) S.origin(2)]);
-    line([S.radius S.radius]+[S.origin(1) S.origin(1)], [-S.radius S.radius]+[S.origin(2) S.origin(2)]);
-    line([S.radius -S.radius]+[S.origin(1) S.origin(1)], [S.radius S.radius]+[S.origin(2) S.origin(2)]);
+line([-S.radius -S.radius]+[S.origin(1) S.origin(1)], [-S.radius S.radius]+[S.origin(2) S.origin(2)]);
+line([-S.radius S.radius]+[S.origin(1) S.origin(1)], [-S.radius -S.radius]+[S.origin(2) S.origin(2)]);
+line([S.radius S.radius]+[S.origin(1) S.origin(1)], [-S.radius S.radius]+[S.origin(2) S.origin(2)]);
+line([S.radius -S.radius]+[S.origin(1) S.origin(1)], [S.radius S.radius]+[S.origin(2) S.origin(2)]);
 
 
 %{
@@ -107,15 +107,15 @@ for i=1:length(t)
     for k=1:S.n_robots
         K = [K; X(k,i) Y(k,i) Z(k,i) t(i)];
     end
-           
+    
     meas = zeros(0,4);
     % truncate state history
     for j=0:length(K(:,1))-1
         meas(mod(j,40)+1,:) = K(j+1,:);
     end
-
-entropyList = [entropyList; S.determineEntropy(meas, t(i))];
-
+    
+    entropyList = [entropyList; S.determineEntropy(meas, t(i),false)];
+    
 end
 n = entropyList;
 figure

@@ -161,8 +161,8 @@ classdef streamedField < handle
     end
     
     properties (GetAccess = private)
-        g = 0;   % counter used to overwrite old data in self measurements
-        h = 0;   % counter used to overwrite old data in other measurements
+        selfCounter = 0;   % counter used to overwrite old data in self measurements
+        otherCounter = 0;   % counter used to overwrite old data in other measurements
         
     end
     
@@ -176,9 +176,11 @@ classdef streamedField < handle
             for i=1:obj.n_robots
                 obj.robots(i,:) = [0 0 0 0];
             end
-            obj.h = zeros(1,n);
+            obj.otherCounter = zeros(1,n);
             obj.radius = radius;
             obj.shape = shape;
+            
+            % set the polygon that describes the shape, it it is a preset
             if strcmp(obj.shape,'triangle') == 1
                 obj.polygon = obj.radius .* [sqrt(3)/2 -.5; -sqrt(3)/2 -.5; 0 1];
             elseif strcmp(obj.shape,'square') == 1
@@ -188,7 +190,6 @@ classdef streamedField < handle
                 angle=0:0.01:2*pi;
                 x=obj.radius*cos(angle);
                 y=obj.radius*sin(angle);
-                
                 obj.polygon = [transpose(x) transpose(y)];
             end
         end
@@ -217,12 +218,12 @@ classdef streamedField < handle
                     states(i,3)-obj.origin(3) t];
                 
                 % tracks own position
-                obj.selfMeasurements(mod(obj.g,obj.timeToDeleteSelf)+1,:,i) = obj.robots(i,:);
+                obj.selfMeasurements(mod(obj.selfCounter,obj.timeToDeleteSelf)+1,:,i) = obj.robots(i,:);
                 for j=1:obj.n_robots
                     if j~=i
                         % tracks the positions of the other robots
-                        obj.otherMeasurements(mod(obj.h(j),(obj.n_robots-1)*obj.timeToDeleteOther)+1,:,j) = obj.robots(i,:);
-                        obj.h(j) = obj.h(j) + 1;
+                        obj.otherMeasurements(mod(obj.otherCounter(j),(obj.n_robots-1)*obj.timeToDeleteOther)+1,:,j) = obj.robots(i,:);
+                        obj.otherCounter(j) = obj.otherCounter(j) + 1;
                     end
                 end
             end
@@ -260,7 +261,7 @@ classdef streamedField < handle
             C = zeros(length(measurements(:,1)), length(measurements(:,1)));
             for i=1:length(measurements(:,1))
                 for j=1:length(measurements(:,1))
-                    % equation to find covariance
+                    % equation to find covariance, number 4 in the paper
                     C(i,j) = exp(-abs(((sqrt((measurements(i,1)...
                         - measurements(j,1))^2 + (measurements(i,2)...
                         - measurements(j,2))^2 + (measurements(i,3)...
@@ -365,8 +366,8 @@ classdef streamedField < handle
             
             M = 0;
             
-            % compares all measurements to all other measurements, follows 
-            % equation 5 from the paper
+            % compares all measurements to all other measurements,
+            % following equations 5 and 6 from the paper
             for i=1:length(tempMeas(:,1))
                 
                 for j=1:length(tempMeas(:,1))
@@ -570,7 +571,7 @@ classdef streamedField < handle
             covariances = initialCovariance + B;
         end
         
-        function [ entropy ] = determineEntropy(obj, measurements,t)
+        function [ entropy ] = determineEntropy(obj, measurements,t,heat)
             % DETERMINEENTROPTY determines the information entropy of the area being searched
             % at a given time
             %
@@ -588,6 +589,8 @@ classdef streamedField < handle
             
             p=0;
             H = 0;
+            % set up the area to be sampled, larger than the radius, since
+            % some polygons will extend beyond it
             x = -1.5*obj.radius:.1*obj.radius:1.5*obj.radius;
             y = -1.5*obj.radius:.1*obj.radius:1.5*obj.radius;
             Htemp = zeros(length(x));
@@ -612,16 +615,18 @@ classdef streamedField < handle
             end
             H = sum(sum(Htemp));
             p = sum(pTemp);
-            %for i=1:length(x)
-            %    for j=1:length(x)
-            %        if Htemp(i,j) == 0
-            %            Htemp(i,j) = 1;
-            %        end
-            %    end
-            %end
-            %HeatMap(1 - Htemp);
-            % for discretized area, divide the sum by the total number of
-            % points
+            
+            % draw heat maps of certainty if the users wants them
+            if heat == true
+                for i=1:length(x)
+                    for j=1:length(x)
+                        if Htemp(i,j) == 0
+                            Htemp(i,j) = 1;
+                        end
+                    end
+                end
+                HeatMap(1 - Htemp);
+            end
             entropy = 1-H/p;
         end
         
@@ -701,7 +706,7 @@ classdef streamedField < handle
             %
             % OUTPUT positions: the matrix of stored positions of robots
             
-            obj.g = obj.g+1;
+            obj.selfCounter = obj.selfCounter+1;
             selfMeasSize = length(obj.selfMeasurements(:,1,1));
             otherMeasSize = length(obj.otherMeasurements(:,1,1));
             positions = zeros(selfMeasSize+otherMeasSize,4,obj.n_robots);

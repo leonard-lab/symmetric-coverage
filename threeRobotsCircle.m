@@ -9,14 +9,14 @@ init = [sqrt(3)/20 -.45 0 .3; -sqrt(3)/20 -.45 0 -2*pi/3+.3; 0 -.3 0 2*pi/3+.3];
 shape = 'circle';
 radius = .4;
 % initialize the field object
-S = field(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
+S = streamedField(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
 S.sigma = .2;        % time constant for spatial separation of measurements
 S.tau = .3;          % time constant for temporal separation of measurements
 S.mu = .1;          % uncertainty in measurements, a characteristic of the sensors
 S.gamma = .04;      % radius over which a gradient is determined for motion
 S.timeToDeleteSelf = 4; % number of time steps after which a robot deletes its own old positions
 S.timeToDeleteOther = 1; % number of time steps after which a robot deletes the other's old positions
-S.k1 = 3;          % coefficient for forward velocity in control law
+S.k1 = 1;          % coefficient for forward velocity in control law
 S.k2 = 1;          % coefficient for angular velocity in control law
 S.k3 = 1;          % coefficient for z velocity in control law
 S.origin = [0 -0.4 0];% movable center which is treated as the origin
@@ -123,7 +123,7 @@ for i=1:length(t)
         meas(mod(j,40)+1,:) = K(j+1,:);
     end
 
-entropyList = [entropyList; S.determineEntropy(meas, t(i))];
+entropyList = [entropyList; S.determineEntropy(meas, t(i),false)];
 
 end
 n = entropyList;
@@ -131,24 +131,4 @@ n = entropyList;
 plot([0 t], n);
 xlabel('time');
 ylabel('entropic information');
-%}
-%%
-
-%{
-% generates a heatmap to show certainty at the end of the run
-S.measurements = [0 0 0 0];
-S.D = inv(S.fieldGen(S.measurements));
-t = 0;
-B=zeros(81,81);
-x = -1:.025:1;
-y = -1:.025:1;
-parfor i=1:length(x)
-    Btemp = zeros(81,81);
-    for j=1:length(y)
-        Btemp(j,i) = S.timeUncertaintyField(x(i), y(j), 0, 0, S.measurements, S.D);
-    end
-    B = B + Btemp;
-end
-HeatMap(1 - B);
-
 %}

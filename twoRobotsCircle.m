@@ -9,7 +9,7 @@ init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
 shape = 'circle';
 radius = .5;
 % initialize the field object
-S = field(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
+S = streamedField(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
 S.twoRobotsCircle();
 
 %S.runspeed = 'fast';
@@ -114,7 +114,7 @@ for i=1:length(t)
         meas(mod(j,60)+1,:) = K(j+1,:);
     end
 
-entropyList = [entropyList; S.determineEntropy(meas, t(i))];
+entropyList = [entropyList; S.determineEntropy(meas, t(i),,false)];
 
 end
 n = entropyList;
