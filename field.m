@@ -17,7 +17,7 @@ classdef field < handle
     % radius: the distance from the origin of the area being surveyed,
     % radius of the circle or sphere, distance to midpoints of lines on
     % square, and distance to vertices of triangle
-    % 
+    %
     % shape: 'circle', 'triangle', 'square', 'sphere', or 'custom', these
     % determine the area being surveyed. NOTE: at present custom only
     % supports 2 dimensional areas
@@ -59,10 +59,10 @@ classdef field < handle
     %    k3: coefficient for z velocity in control law
     %
     %    radius = 1;        % distance to edge of survey area
-    %    
+    %
     %    shape: shape of the boundary area. Currently accepted are circle,
     %    square, triangle, and custom.
-    %    
+    %
     %    runspeed: fast, average_fast, average_slow, precise_slow, or slow,
     %    where slow follows the proper control law, fast
     %    alternates "leaders" every time step to increase speed and force
@@ -78,7 +78,7 @@ classdef field < handle
     %
     %    D: matrix of covariances between measurements
     %
-    %    polygon: vertices for a custom shape 
+    %    polygon: vertices for a custom shape
     %
     %    measurements: retains matrix of past positions
     %
@@ -106,7 +106,7 @@ classdef field < handle
     %   measurement points, and returns a matrix of all these covariances
     %
     %   bestDirection: used in the gradient control
-    %   law, determines what direction the robot should move in, and 
+    %   law, determines what direction the robot should move in, and
     %   returns its corrdinates
     %
     %   uncertaintyCalculate: Calculates the net uncertainty field at a
@@ -123,7 +123,7 @@ classdef field < handle
     %   matrix
     %
     %   compileLocationTest: This method allows for more straightfoward
-    %   running of the program if multiple robots are being calculated 
+    %   running of the program if multiple robots are being calculated
     %   simultaneously outside of a parfor loop
     %
     %   commandGen: generates commands for the Miabots based on their goal
@@ -134,10 +134,10 @@ classdef field < handle
     %
     %   centroid: finds the centroid of each voronoi region surrounding a
     %   sensor, weighted by uncertainty
-    % 
+    %
     %   certainty: Calculates the net certainty at a given point
     %   in time, used within uncertaintyField
-    %   
+    %
     %   uncertaintyField: generates the uncertainty at a point in space at
     %   the current time, used by the voronoi control law
     %
@@ -146,9 +146,9 @@ classdef field < handle
     %
     %   twoRobotsCircle: sets the properties used for the demo of two
     %   robots in a circular survey area
-    % 
+    %
     %   twoRobotsSquare: sets the properties used for the demo of two
-    %   robots in a square survey area  
+    %   robots in a square survey area
     
     properties
         sigma = .2;        % time constant for spatial separation of measurements
@@ -180,7 +180,7 @@ classdef field < handle
         % control law, but runs faster than slow with more possible points
         precision = 6;        % number of spots considered for goal points
         D;                    % matrix of covariances between measurements
-        polygon;              % vertices for a custom shape 
+        polygon;              % vertices for a custom shape
         origin = [0 -0.5 0];  % center of the survey area, which is treated as the origin
     end
     
@@ -199,7 +199,15 @@ classdef field < handle
     methods
         
         function obj = field(n, shape, radius)
-            % generates a new field object
+            % FIELD generates a new field object
+            %
+            % SYNOPSIS obj = field(n, shape, radius)
+            %
+            % INPUT n: the number of robots
+            % shape: the shape of the area being surveyed, 'square',
+            % 'circle', 'sphere', 'triangle', or 'custom
+            % radius: the scaling factor of the area being surveyed
+            
             obj.n_robots = n;
             
             % initialize sensors
@@ -225,32 +233,32 @@ classdef field < handle
         end
         
         function [] = twoRobotsCircle(obj)
-            % sets the properties used for the demo of two robots in a
-            % circular survey area
+            % TWOROBOTSCIRCLE sets the properties used for the demo of two
+            % robots in a circular survey area
             
-            obj.sigma = .1;      
-            obj.tau = 1;      
-            obj.mu = .15;      
-            obj.gamma = .1;    
+            obj.sigma = .1;
+            obj.tau = 1;
+            obj.mu = .15;
+            obj.gamma = .1;
             obj.timeToDelete = 4;
-            obj.k1 = 1;          
-            obj.k2 = 1;          
-            obj.k3 = 1;          
+            obj.k1 = 1;
+            obj.k2 = 1;
+            obj.k3 = 1;
             obj.origin = [0 -.50 0];
         end
         
         function [] = twoRobotsSquare(obj)
-            % sets the properties used for the demo of two robots in a
-            % square survey area    
+            % TWOROBOTSSQUARE sets the properties used for the demo of two
+            % robots in a square survey area
             
-            obj.sigma = .1;        
-            obj.tau = .8;        
-            obj.mu = .1;         
-            obj.gamma = .08;     
+            obj.sigma = .2;
+            obj.tau = 8;
+            obj.mu = .1;
+            obj.gamma = .08;
             obj.timeToDelete = 2;
-            obj.k1 = 1;          
-            obj.k2 = 1;          
-            obj.k3 = 1;          
+            obj.k1 = 1;
+            obj.k2 = 1;
+            obj.k3 = 1;
             obj.origin = [0 -.50 0];
         end
     end
@@ -285,12 +293,12 @@ classdef field < handle
                 obj.measureCounter = obj.measureCounter+1;
             end
             
-            % find the covariance between the measurements, and leave a 
+            % find the covariance between the measurements, and leave a
             % space for testing the movements for the next time step
             obj.D = zeros(length(obj.measurements(:,1)) + 1,...
                 length(obj.measurements(:,1)) + 1);
             obj.D(1:end-1,1:end-1) = obj.fieldGen(obj.measurements);
-             
+            
             % runs the 'fast' version of the control law
             if strcmp(obj.runspeed,'fast')==true
                 commands = zeros(obj.n_robots,3);
@@ -318,7 +326,7 @@ classdef field < handle
                             *pi/(obj.n_robots)) cos(-2*(i-r-1)...
                             *pi/(obj.n_robots))];
                     end
-
+                    
                     commands = obj.commandGen(states, Goals);
                     
                 end
@@ -447,7 +455,7 @@ classdef field < handle
             covariances = C + obj.mu * eye(length(measurements(:,1)));
             
         end
-       
+        
         function [ goal ] = bestDirection(obj, robots, theta)
             % BESTDIRECTION used in the gradient control law, determines
             % what direction the robot should move in, and returns its
@@ -459,7 +467,7 @@ classdef field < handle
             % robots: the matrix of current robot positions
             % theta: the matrix of current robot headings
             %
-            % OUTPUT goal: the objective (x,y,z) for each robot 
+            % OUTPUT goal: the objective (x,y,z) for each robot
             
             best = Inf(length(robots(:,1)),1); % tracks what direction would bring the most certainty
             
@@ -488,7 +496,7 @@ classdef field < handle
                     
                     [goaltemp(:,:,index),bestTemp(:,index)] = obj.locationTest(robots, i, j, k, theta, dt);
                     
-                end    
+                end
             else
                 angle=theta+pi/(.5*obj.precision):pi/(.5*obj.precision):(2*pi+theta);
                 for index=1:length(angle)
@@ -515,13 +523,12 @@ classdef field < handle
                     elseif bestTemp(i,index) == best(i)
                         
                         % theta1 and theta2 are the angles from the heading
-                        
-                        theta1 = wrapTo2Pi(atan2(goaltemp(i,2,index),goaltemp(i,1,index)) - theta(i));
-                        
-                        
-                        
-                        theta2 = wrapTo2Pi(atan2(goal(i,2)-robots(i,2),goal(i,1)-robots(i,1)) - theta(i));
-                        
+                        theta1 = wrapTo2Pi(atan2(goaltemp(i,2,index),...
+                            goaltemp(i,1,index)) - theta(i));
+                        theta2 = wrapTo2Pi(atan2(goal(i,2)-robots(i,2),...
+                            goal(i,1)-robots(i,1)) - theta(i));
+                        % choose the angle that comes first moving
+                        % counterclockwise
                         if theta1 < theta2
                             goal(i,:) = goaltemp(i,:,index);
                             best(i) = bestTemp(i,index);
@@ -556,11 +563,11 @@ classdef field < handle
                 for j=1:length(tempMeas(:,1))
                     % sums all components of certainty
                     M = M + (obj.spacetimeAverage*exp(-abs(((sqrt((x - tempMeas(i,1)).^2 ...
-                    + (y - tempMeas(i,2)).^2 + (z - tempMeas(i,3)).^2) ...
-                    ./ obj.sigma))) - abs((t - tempMeas(i,4))./ obj.tau))...
-                    .* D(i,j) .* exp(-abs(((sqrt((tempMeas(j,1) - x).^2 ...
-                    + (tempMeas(j,2) - y).^2 + (tempMeas(j,3) - z).^2)...
-                    ./ obj.sigma))) - abs(((tempMeas(j,4)) - t)./ obj.tau)));
+                        + (y - tempMeas(i,2)).^2 + (z - tempMeas(i,3)).^2) ...
+                        ./ obj.sigma))) - abs((t - tempMeas(i,4))./ obj.tau))...
+                        .* D(i,j) .* exp(-abs(((sqrt((tempMeas(j,1) - x).^2 ...
+                        + (tempMeas(j,2) - y).^2 + (tempMeas(j,3) - z).^2)...
+                        ./ obj.sigma))) - abs(((tempMeas(j,4)) - t)./ obj.tau)));
                     
                 end
                 
@@ -585,11 +592,13 @@ classdef field < handle
             %
             % OUTPUT uncertainty: the uncertainty of data at a point
             
+            % determines whether a point is inside the region being
+            % surveyed or not, depending on its shape
             if strcmp(obj.shape,'triangle')==true
                 uncertainty = zeros(1,length(x));
-               
+                
                 for index=1:length(x)
-                     % conditions for outside triangle
+                    % conditions for outside triangle
                     if (x(index) > sqrt(3)/2*obj.radius) || (x(index)...
                             < -sqrt(3)/2)*obj.radius || (y(index)...
                             > (-sqrt(3)*x(index) + 1)*obj.radius) ||...
@@ -601,13 +610,13 @@ classdef field < handle
                         uncertainty(index) = obj.uncertaintyCalculate(x(index), y(index), z(index), t, tempMeas, D);
                     end
                 end
-             
+                
             elseif strcmp(obj.shape,'circle') == true
                 uncertainty = zeros(1,length(x));
                 
                 
                 for index=1:length(x)
-                 % conditions for outside circle   
+                    % conditions for outside circle
                     if (x(index)^2 + (y(index))^2)^.5 > obj.radius
                         uncertainty(index) = 1;
                     else
@@ -660,11 +669,11 @@ classdef field < handle
             end
         end
         
-        function [ F, b ] = locationTest(obj, robot, i, j, k, theta, dt)
+        function [ point, b ] = locationTest(obj, robot, i, j, k, theta, dt)
             % LOCATIONTEST tests a point to see how much cumulative uncertainty moving
             % to it would leave behind on the other gamma close points
             %
-            % SYNOPSIS [ F, b ] = locationTest(obj, robot, i, j, k, theta, dt)
+            % SYNOPSIS [ point, b ] = locationTest(obj, robot, i, j, k, theta, dt)
             %
             % INPUT obj: the object
             % robot: the robot whose motion is being evaluated
@@ -673,20 +682,20 @@ classdef field < handle
             % theta: the heading of the robot
             % dt: the time step, as estimated by the previous time
             %
-            % OUTPUT F: the point being considered
+            % OUTPUT point: the point being considered
             % b: the sum of uncertainty at gamma-close points if there were
             % a measurements at F
             
             % generates a temporary matrix including the new test
             tempMeas = [obj.measurements; robot(1) + i, robot(2) + j, robot(3) + k,...
                 robot(4) + dt];
-
+            
             % completes the covariance based on the trial sensor
             D = inv(obj.finishCovariance(obj.D, tempMeas));
             
             % finds and returns the sum uncertainties at with the new
             % measurement
-            b = 0;           
+            b = 0;
             angle = (theta+pi/(.5*obj.precision)):pi/(.5*obj.precision):(2*pi+theta);
             v = obj.gamma * cos(angle);
             w = obj.gamma * sin(angle);
@@ -697,12 +706,12 @@ classdef field < handle
             A = obj.timeUncertaintyField(robot(1) + v,robot(2) + w,...
                 robot(3) + u, tempMeas(end,4), tempMeas, D);
             b = b + sum(A);
-            F = [robot(1) + i, robot(2) + j, robot(3) + k];
+            point = [robot(1) + i, robot(2) + j, robot(3) + k];
             
             
             
         end
-                
+        
         function [ covariances ] = finishCovariance(obj, covariance, tempMeas)
             % FINISHCOVARIANCE calculates the covariances of the new measurement with all
             % previous ones, and combines this with the previously found
@@ -718,7 +727,7 @@ classdef field < handle
             % OUTPUT covariances: the completed matrix of covariances
             
             B = zeros(length(tempMeas(:,1)), length(tempMeas(:,1)));
-            i=length(tempMeas(:,1));2;  
+            i=length(tempMeas(:,1));2;
             % Find the covariance of the last row and column
             for j=1:length(tempMeas(:,1))
                 B(i,j) = exp(-abs(((sqrt((tempMeas(i,1) - tempMeas(j,1))^2 ...
@@ -741,7 +750,7 @@ classdef field < handle
         end
         
         function [Ftemp,bestTemp] = compileLocationTest(obj, robots, theta, index, dt)
-            % COMPILELOCATIONTEST This program allows for more 
+            % COMPILELOCATIONTEST This program allows for more
             % straightfoward running of the program if multiple robots are
             % being calculated simultaneously outside of a parfor loop
             %
@@ -1150,7 +1159,7 @@ classdef field < handle
             
         end
         
-
+        
     end
     
 end

@@ -1,6 +1,6 @@
 classdef streamedField < handle
-    % This class runs gradient based search descriped in the symmetric 
-    % coverage paper, using the Miabots class. The user must provide a 
+    % This class runs gradient based search descriped in the symmetric
+    % coverage paper, using the Miabots class. The user must provide a
     % runtime, a shape of the area to be searched, and initial positions.
     %
     % Summary provided below. More help can be found by typing doc field
@@ -17,7 +17,7 @@ classdef streamedField < handle
     % radius: the distance from the origin of the area being surveyed,
     % radius of the circle or sphere, distance to midpoints of lines on
     % square, and distance to vertices of triangle
-    % 
+    %
     % shape: 'circle', 'triangle', 'square', 'sphere', or 'custom', these
     % determine the area being surveyed. NOTE: at present custom only
     % supports 2 dimensional areas
@@ -55,10 +55,10 @@ classdef streamedField < handle
     %    k3: coefficient for z velocity in control law
     %
     %    radius = 1;        % distance to edge of survey area
-    %    
+    %
     %    shape: shape of the boundary area. Currently accepted are circle,
     %    square, triangle, and custom.
-    %    
+    %
     %    precision: number of spots considered for goal points
     %
     %    t: current time
@@ -67,7 +67,7 @@ classdef streamedField < handle
     %
     %    D: matrix of covariances between measurements
     %
-    %    polygon: vertices for a custom shape 
+    %    polygon: vertices for a custom shape
     %
     %    robots: stores current positions of robots
     %
@@ -76,7 +76,7 @@ classdef streamedField < handle
     %    timeToDeleteSelf: number of time steps after which a robot deletes
     %    its own old positions
     %
-    %    timeToDeleteOther: number of time steps after which a robot 
+    %    timeToDeleteOther: number of time steps after which a robot
     %    deletes its record of the other robots' positions
     %
     %    selfMeasurements: stores a matrix of each robot's past locations
@@ -100,7 +100,7 @@ classdef streamedField < handle
     %   measurement points, and returns a matrix of all these covariances
     %
     %   bestDirection: used in the gradient control
-    %   law, determines what direction the robot should move in, and 
+    %   law, determines what direction the robot should move in, and
     %   returns its corrdinates
     %
     %   uncertaintyCalculate: Calculates the net uncertainty field at a
@@ -127,9 +127,9 @@ classdef streamedField < handle
     %
     %   twoRobotsCircle: sets the properties used for the demo of two
     %   robots in a circular survey area
-    % 
+    %
     %   twoRobotsSquare(obj): sets the properties used for the demo of two
-    %   robots in a square survey area 
+    %   robots in a square survey area
     
     properties
         sigma = .2;            % time constant for spatial separation of measurements
@@ -288,7 +288,7 @@ classdef streamedField < handle
             % robots: the matrix of current robot positions
             % theta: the matrix of current robot headings
             %
-            % OUTPUT goal: the objective (x,y,z) for each robot 
+            % OUTPUT goal: the objective (x,y,z) for each robot
             
             best = Inf; % tracks what direction
             % would bring the most certainty
@@ -331,12 +331,10 @@ classdef streamedField < handle
                     
                     theta1 = wrapTo2Pi(atan2(goaltemp(1,2,index),...
                         goaltemp(1,1,index)) - theta);
-                    
-                    
-                    
                     theta2 = wrapTo2Pi(atan2(goal(1,2)-robots(1,2),...
                         goal(1,1)-robots(1,1)) - theta);
-                    
+                    % choose the angle that comes first moving
+                    % counterclockwise
                     if theta1 < theta2
                         goal(1,:) = goaltemp(1,:,index);
                         best(1) = bestTemp(1,index);

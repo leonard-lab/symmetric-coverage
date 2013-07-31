@@ -1,14 +1,23 @@
 % this script will run the gradient based control law
 clear all
 
+shape = 'circle';
 % can adjust shape of survey area, default is triangular, with sphere,
 % circle, square, and custom being other options
-shape = 'circle';
-radius = .5;
+
+radius = .5; % even if custom, try to set to roughly the radius of the shape
+
 runspeed = 'slow';
-runTime = 30;
-sim = true;
-noise = [0.0005 0.0005 0 0.0005];
+% selects speed of the run, 'slow' computes each robot individually, but is
+% susceptible to noise, 'fast' alternates leader robots to speed up the
+% program, at the possible expense of accuracy, 'average_fast' runs
+% similarly to fast, but uses the average of each rotated position,
+% 'average_slow' runs at the slow speed, but sends robots to the average of
+% their goal points to protect against noise and jitteriness
+
+runTime = 30; % time to run Miabots for
+sim = true; % whether to run a simulation or run actual Miabots through ROS
+noise = [0.0005 0.0005 0 0.0005]; % simulated noise for when sim = true
 % select initial conditions for the robots, some examples are given here
 % two robot setup:
 %init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
@@ -25,8 +34,10 @@ init = [sqrt(3)/20 -.55 0 0; -sqrt(3)/20 -.55 0 -2*pi/3; 0 -.4 0 2*pi/3];
 %init = [.25*cos(2*a*pi/9) -.25*sin(2*a*pi/9) b -2*a*pi/9];
 
 % initialize the field object
-S = field(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
-%S.twoRobotsCircle();
+S = streamedField(length(init(:,1)), shape, radius);
+
+%S.runspeed = runspeed;
+
 
 % if shape is 'custom' polygon represents the vertices of the shape
 %S.polygon = [1 1; -1 1; -1 -1; 1 -1; 1 1];
@@ -35,14 +46,6 @@ S = field(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, R
 %S.polygon = 2.*[0 1; 1/sqrt(12) .5; sqrt(3)/2 .5; sqrt(3)/3 0; sqrt(3)/2 -.5;
 %    1/sqrt(12) -.5; 0 -1; -1/sqrt(12) -.5; -sqrt(3)/2 -.5; -sqrt(3)/3 0;
 %    -sqrt(3)/2 .5; -1/sqrt(12) .5; 0 1];
-
- %S.runspeed = 'fast';
-% selects speed of the run, 'slow' computes each robot individually, but is
-% susceptible to noise, 'fast' alternates leader robots to speed up the
-% program, at the possible expense of accuracy, 'average_fast' runs
-% similarly to fast, but uses the average of each rotated position,
-% 'average_slow' runs at the slow speed, but sends robots to the average of
-% their goal points to protect against noise and jitteriness
 
 S.runTime = runTime;
 

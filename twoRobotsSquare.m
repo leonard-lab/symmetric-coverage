@@ -9,7 +9,7 @@ init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
 shape = 'square';
 radius = .5;
 % initialize the field object
-S = streamedField(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
+S = field(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
 S.twoRobotsSquare();
 
 %S.runspeed = 'fast';
@@ -19,7 +19,7 @@ S.twoRobotsSquare();
 % similarly to fast, but uses the average of each rotated position,
 % 'average_slow' runs at the slow speed, but sends robots to the average of
 % their goal points to protect against noise and jitteriness
-S.runTime = 15;
+S.runTime = 30;
 
 if matlabpool('size') == 0 % checking to see if my pool is already open
     matlabpool open % can do more on computer with more cores
@@ -27,10 +27,10 @@ end
 
 % call control law for robot motion
 control_law = @(t,x) S.control_law(t,x);
-noise = [0.000 0.000 0 0.000];
+noise = [0.001 0.001 0 0.001];
 % calls new Miabot object that actuates robot motion
 m = Miabots(init, control_law, 'velocity', S.runTime,...
-    'sim', true);
+    'sim', true, 'Sim_noise', noise);
 m.start
 
 %%

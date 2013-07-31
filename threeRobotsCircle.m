@@ -8,8 +8,10 @@ init = [sqrt(3)/20 -.45 0 .3; -sqrt(3)/20 -.45 0 -2*pi/3+.3; 0 -.3 0 2*pi/3+.3];
 % circle, square, and custom being other options
 shape = 'circle';
 radius = .4;
+
 % initialize the field object
 S = streamedField(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
+
 S.sigma = .2;        % time constant for spatial separation of measurements
 S.tau = .3;          % time constant for temporal separation of measurements
 S.mu = .1;          % uncertainty in measurements, a characteristic of the sensors
@@ -58,11 +60,11 @@ end
 xlabel('X-position');
 ylabel('Y-position');
 
-    hold on
-    angle=0:0.01:2*pi;
-    x=S.radius*cos(angle);
-    y=S.radius*sin(angle);
-    plot(x+S.origin(1),y+S.origin(2));
+hold on
+angle=0:0.01:2*pi;
+x=S.radius*cos(angle);
+y=S.radius*sin(angle);
+plot(x+S.origin(1),y+S.origin(2));
 
 
 % plots x vs t, y vs t, z vs t, and theta vs t

@@ -1,8 +1,8 @@
 % this script will run the gradient based control law for two robots moving
-% in a circle 
+% in a circle
 clear all
 
-% select initial conditions for the robots, some examples are given here
+% select initial conditions for the robots
 % two robot setup:
 init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
 
@@ -21,7 +21,8 @@ S.twoRobotsCircle();
 % their goal points to protect against noise and jitteriness
 S.runTime = 30;
 
-if matlabpool('size') == 0 % checking to see if my pool is already open
+if matlabpool('size') == 0 % checking to see if matlab worker pool is
+    % already open
     matlabpool open % can do more on computer with more cores
 end
 
@@ -48,11 +49,11 @@ for i=1:S.n_robots
 end
 xlabel('X-position');
 ylabel('Y-position');
-    hold on
-    angle=0:0.01:2*pi;
-    x=S.radius*cos(angle);
-    y=S.radius*sin(angle);
-    plot(x+S.origin(1),y+S.origin(2));
+hold on
+angle=0:0.01:2*pi;
+x=S.radius*cos(angle);
+y=S.radius*sin(angle);
+plot(x+S.origin(1),y+S.origin(2));
 
 
 %{
