@@ -147,12 +147,13 @@ classdef field < handle
         tau = .8;          % time constant for temporal separation of measurements
         mu = .1;           % uncertainty in measurements, a characteristic of the sensors
         gamma = .08;       % radius over which a gradient is determined for motion
+        spacetimeAverage = 1;  % coefficient for field covariance
         timeToDelete = 3;  % the number of time steps robot positions are saved for
         gridSize = -1:.2:1;% the grid size used for the voronoi control law
         zGridSize = 0;     % the z grid size used for the voronoi control law
         runTime;           % how many seconds the Miabots will run for
         n_robots;          % number of robots
-        k1 = 2;            % coefficient for forward velocity in control law
+        k1 = 1;            % coefficient for forward velocity in control law
         k2 = 1;            % coefficient for angular velocity in control law
         k3 = 1;            % coefficient for z velocity in control law
         radius = 1;        % distance to edge of survey area
@@ -542,7 +543,7 @@ classdef field < handle
             for i=1:length(tempMeas(:,1))
                 for j=1:length(tempMeas(:,1))
                     % sums all components of certainty
-                    M = M + (exp(-abs(((sqrt((x - tempMeas(i,1)).^2 ...
+                    M = M + (obj.spacetimeAverage*exp(-abs(((sqrt((x - tempMeas(i,1)).^2 ...
                     + (y - tempMeas(i,2)).^2 + (z - tempMeas(i,3)).^2) ...
                     ./ obj.sigma))) - abs((t - tempMeas(i,4))./ obj.tau))...
                     .* D(i,j) .* exp(-abs(((sqrt((tempMeas(j,1) - x).^2 ...
@@ -554,7 +555,7 @@ classdef field < handle
             end
             
             
-            uncertainty = 1 - M;
+            uncertainty = obj.spacetimeAverage - M;
         end
         
         function [ uncertainty ] = timeUncertaintyField(obj, x, y, z, t, tempMeas, D)
@@ -998,6 +999,7 @@ classdef field < handle
             
             % for speed, doesn't not compute for measurements far
             % away from each other spatially or temporally
+            % follows equation 6 from the paper
             for i=1:length(measurements(:,1))
                 if measurements(i,4) > obj.t - 3 * obj.tau
                     if abs(((measurements(i,1)).^2 ...
@@ -1009,9 +1011,8 @@ classdef field < handle
                                         + (measurements(j,2)).^2 + (measurements(j,3)).^2).^.5 ...
                                         - (x.^2 + y.^2)^.5) < 4 * obj.sigma
                                     
-                                    % sums all components of
-                                    % certainty
-                                    M = M + (exp(-abs(((sqrt((x ...
+                                    % sums all components of certainty
+                                    M = M + (obj.spacetimeAverage*exp(-abs(((sqrt((x ...
                                         - measurements(i,1)).^2 + (y ...
                                         - measurements(i,2)).^2 + (z - measurements(i,3)).^2) ...
                                         ./ obj.sigma))) - abs((obj.t - measurements(i,4))...
@@ -1046,49 +1047,49 @@ classdef field < handle
             if strcmp(obj.shape,'triangle')==true
                 if x > sqrt(3)/2 || x < -sqrt(3)/2 || y > (-sqrt(3)*x + 1) || y > (sqrt(3)*x + 1) || y < -.5
                     
-                    M = 1;
+                    M = obj.spacetimeAverage;
                 else
                     M = obj.certainty(x,y,z,measurements);
                 end
-                A = 1 - M;
+                A = obj.spacetimeAverage - M;
                 
                 % conditions for a square region of search
             elseif strcmp(obj.shape,'square')==true
                 if x > obj.radius || x < -obj.radius || y > obj.radius || y < -obj.radius
                     
-                    M = 1;
+                    M = obj.spacetimeAverage;
                 else
                     M = obj.uncertainty(x,y,z,measurements);
                 end
-                A = 1 - M;
+                A = obj.spacetimeAverage - M;
                 
                 % conditions for a circular region of search
             elseif strcmp(obj.shape,'circle')==true
                 if (x^2 + (y-.5)^2 > obj.radius^2)
                     
-                    M = 1;
+                    M = obj.spacetimeAverage;
                 else
                     M = obj.uncertainty(x,y,z,measurements);
                 end
-                A = 1 - M;
+                A = obj.spacetimeAverage - M;
                 
             elseif strcmp(obj.shape,'sphere')==true
                 if (x^2 + y^2 + z^2 > obj.radius^2)
                     
-                    M = 1;
+                    M = obj.spacetimeAverage;
                 else
                     M = obj.uncertainty(x,y,z,measurements);
                 end
-                A = 1 - M;
+                A = obj.spacetimeAverage - M;
                 
                 % conditions for a custom region of search
             elseif strcmp(obj.shape,'custom') == 1
                 if inpolygon(x,y,obj.polygon(:,1),obj.polygon(:,2)) == 0
-                    M = 1;
+                    M = obj.spacetimeAverage;
                 else
                     M = obj.uncertainty(x,y,z,measurements);
                 end
-                A = 1 - M;
+                A = obj.spacetimeAverage - M;
             end
             
         end

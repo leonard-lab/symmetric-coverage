@@ -8,13 +8,13 @@ radius = .5;
 runspeed = 'slow';
 runTime = 30;
 sim = true;
-noise = [0.000 0.000 0 0.000];
+noise = [0.0005 0.0005 0 0.0005];
 % select initial conditions for the robots, some examples are given here
 % two robot setup:
-init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
+%init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
 
 % three robot setup:
-%init = [sqrt(3)/20 -.05 0 0; -sqrt(3)/20 -.05 0 -2*pi/3; 0 .1 0 2*pi/3];
+init = [sqrt(3)/20 -.55 0 0; -sqrt(3)/20 -.55 0 -2*pi/3; 0 -.4 0 2*pi/3];
 
 %four robot setup:
 %init = [0 .5 0 .3; .5 0 0 -pi/2 + .3; 0 -.5 0 pi+.3; -.5 0 0 pi/2 + .3];
@@ -25,8 +25,8 @@ init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
 %init = [.25*cos(2*a*pi/9) -.25*sin(2*a*pi/9) b -2*a*pi/9];
 
 % initialize the field object
-S = streamedField(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
-S.twoRobotsCircle();
+S = field(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
+%S.twoRobotsCircle();
 
 % if shape is 'custom' polygon represents the vertices of the shape
 %S.polygon = [1 1; -1 1; -1 -1; 1 -1; 1 1];
@@ -36,7 +36,7 @@ S.twoRobotsCircle();
 %    1/sqrt(12) -.5; 0 -1; -1/sqrt(12) -.5; -sqrt(3)/2 -.5; -sqrt(3)/3 0;
 %    -sqrt(3)/2 .5; -1/sqrt(12) .5; 0 1];
 
-% S.runspeed = 'fast';
+ S.runspeed = 'fast';
 % selects speed of the run, 'slow' computes each robot individually, but is
 % susceptible to noise, 'fast' alternates leader robots to speed up the
 % program, at the possible expense of accuracy, 'average_fast' runs

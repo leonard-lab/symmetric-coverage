@@ -139,6 +139,7 @@ classdef streamedField < handle
         timeToDeleteSelf = 7;  % number of time steps after which a robot deletes its own old positions
         timeToDeleteOther = 2; % number of time steps after which a robot deletes its record of the other robots' positions
         runTime;               % how many seconds the Miabots will run for
+        spacetimeAverage = 1;  % coefficient for field covariance
         n_robots;              % number of robots
         k1 = 1;                % coefficient for forward velocity in control law
         k2 = 1;                % coefficient for angular velocity in control law
@@ -364,13 +365,14 @@ classdef streamedField < handle
             
             M = 0;
             
-            % compares all measurements to all other measurements
+            % compares all measurements to all other measurements, follows 
+            % equation 5 from the paper
             for i=1:length(tempMeas(:,1))
                 
                 for j=1:length(tempMeas(:,1))
                     
                     % sums all components of certainty
-                    M = M + (exp(-abs(((sqrt((x - tempMeas(i,1)).^2 + (y ...
+                    M = M + (obj.spacetimeAverage*exp(-abs(((sqrt((x - tempMeas(i,1)).^2 + (y ...
                         - tempMeas(i,2)).^2 + (z - tempMeas(i,3)).^2)...
                         ./ obj.sigma))) - abs((t - tempMeas(i,4))...
                         ./ obj.tau)) .* D(i,j) .* exp(-abs(((sqrt((tempMeas(j,1)...
@@ -384,7 +386,7 @@ classdef streamedField < handle
             end
             
             
-            Uncertainty = 1 - M;
+            Uncertainty = obj.spacetimeAverage - M;
         end
         
         function [ Uncertainty ] = timeUncertaintyField(obj, x, y, z, t, tempMeas, D)
