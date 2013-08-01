@@ -178,7 +178,8 @@ classdef field < handle
         % symmetry, average_fast averages positions to find where to go,
         % average_slow averages goals, and precise_slow does the proper
         % control law, but runs faster than slow with more possible points
-        precision = 6;        % number of spots considered for goal points
+        
+        precision = 14;        % number of spots considered for goal points
         D;                    % matrix of covariances between measurements
         polygon;              % vertices for a custom shape
         origin = [0 -0.5 0];  % center of the survey area, which is treated as the origin
@@ -232,35 +233,6 @@ classdef field < handle
             end
         end
         
-        function [] = twoRobotsCircle(obj)
-            % TWOROBOTSCIRCLE sets the properties used for the demo of two
-            % robots in a circular survey area
-            
-            obj.sigma = .1;
-            obj.tau = 1;
-            obj.mu = .15;
-            obj.gamma = .1;
-            obj.timeToDelete = 4;
-            obj.k1 = 1;
-            obj.k2 = 1;
-            obj.k3 = 1;
-            obj.origin = [0 -.50 0];
-        end
-        
-        function [] = twoRobotsSquare(obj)
-            % TWOROBOTSSQUARE sets the properties used for the demo of two
-            % robots in a square survey area
-            
-            obj.sigma = .2;
-            obj.tau = 8;
-            obj.mu = .1;
-            obj.gamma = .08;
-            obj.timeToDelete = 2;
-            obj.k1 = 1;
-            obj.k2 = 1;
-            obj.k3 = 1;
-            obj.origin = [0 -.50 0];
-        end
     end
     
     methods
@@ -869,27 +841,30 @@ classdef field < handle
             H = 0;
             % set up the area to be sampled, larger than the radius, since
             % some polygons will extend beyond it
-            x = -1.5*obj.radius:.15*obj.radius:1.5*obj.radius;
-            y = -1.5*obj.radius:.15*obj.radius:1.5*obj.radius;
-            Htemp = zeros(1,length(x));
+            x = -1.5*obj.radius:.1*obj.radius:1.5*obj.radius;
+            y = -1.5*obj.radius:.1*obj.radius:1.5*obj.radius;
+            Htemp = zeros(length(x));
             pTemp = zeros(1,length(x));
             
             % sum the uncertainties within the region covered
             parfor i=1:length(x)
-                for j=1:length(y)
+                n = zeros(1,length(x));
+                for j=1:length(x)
                     if inpolygon(x(i), y(j), obj.polygon(:,1), ...
                             obj.polygon(:,2)) == 1
                         
-                        Htemp(i) = Htemp(i) + obj.timeUncertaintyField(x(i),...
+                        n(j) = obj.timeUncertaintyField(x(i),...
                             y(j), 0, t, measurements, D)
                         
                         pTemp(i) = pTemp(i)+1;
+                        
                     end
+                    Htemp(i,:) = n;
                 end
                 
             end
-            H = H + sum(Htemp);
-            p = p + sum(pTemp);
+            H = sum(sum(Htemp));
+            p = sum(pTemp);
             
             if heat == true
                 for i=1:length(x)

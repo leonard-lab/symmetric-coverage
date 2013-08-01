@@ -712,41 +712,7 @@ classdef streamedField < handle
             for i=1:obj.n_robots
                 positions(:,:,i) = [obj.selfMeasurements(:,:,i); obj.otherMeasurements(:,:,i)];
             end
-        end
-        
-        function [] = twoRobotsCircle(obj)
-            % sets the properties used for the demo of two robots in a
-            % circular survey area
-            
-            obj.sigma = .1;      % time constant for spatial separation of measurements
-            obj.tau = .8;       % time constant for temporal separation of measurements
-            obj.mu = .1;        % uncertainty in measurements, a characteristic of the sensors
-            obj.gamma = .1;      % radius over which a gradient is determined for motion
-            obj.timeToDeleteSelf = 7; % number of time steps after which a robot deletes its own old positions
-            obj.timeToDeleteOther = 2; % number of time steps after which a robot deletes the other's old positions
-            obj.k1 = 1;          % coefficient for forward velocity in control law
-            obj.k2 = 1;          % coefficient for angular velocity in control law
-            obj.k3 = 1;          % coefficient for z velocity in control law
-            obj.origin = [0 -.50 0];% movable center which is treated as the origin
-        end
-        
-        function [] = twoRobotsSquare(obj)
-            % sets the properties used for the demo of two robots in a
-            % square survey area
-            
-            obj.sigma = .1;        % time constant for spatial separation of measurements
-            obj.tau = .8;          % time constant for temporal separation of measurements
-            obj.mu = .1;          % uncertainty in measurements, a characteristic of the sensors
-            obj.gamma = .08;      % radius over which a gradient is determined for motion
-            obj.timeToDeleteSelf = 7; % number of time steps after which a robot deletes its own old positions
-            obj.timeToDeleteOther = 2; % number of time steps after which a robot deletes the other's old positions
-            
-            obj.k1 = 1;          % coefficient for forward velocity in control law
-            obj.k2 = 1;          % coefficient for angular velocity in control law
-            obj.k3 = 1;          % coefficient for z velocity in control law
-            obj.origin = [0 -.50 0];% movable center which is treated as the origin
-        end
+        end  
     end
-    
 end
 

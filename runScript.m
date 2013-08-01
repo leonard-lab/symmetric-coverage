@@ -15,7 +15,7 @@ runspeed = 'slow';
 % 'average_slow' runs at the slow speed, but sends robots to the average of
 % their goal points to protect against noise and jitteriness
 
-runTime = 30; % time to run Miabots for
+runTime = 60; % time to run Miabots for
 sim = true; % whether to run a simulation or run actual Miabots through ROS
 noise = [0.0005 0.0005 0 0.0005]; % simulated noise for when sim = true
 % select initial conditions for the robots, some examples are given here
@@ -183,4 +183,29 @@ plot([0 t], n);
 xlabel('time');
 ylabel('entropic information');
 %}
+%%
+% records a string of all inputted variables, and generates a csv file
+% containing the data from the run
+p1 = transpose(m.get_history(1,'state_times'));
+M = zeros(length(p1), 9, S.n_robots);
+for i=1:S.n_robots
+    
+    p2 = transpose(m.get_history(i,'x'));
+    p3 = transpose(m.get_history(i,'y'));
+    p4 = transpose(m.get_history(i,'z'));
+    p5 = transpose(m.get_history(i,'vx'));
+    p6 = transpose(m.get_history(i,'vz'));
+    p7 = transpose(m.get_history(i,'theta'));
+    p8 = transpose(m.get_history(i,'theta_dot'));
+    p9 = n(2:length(n));
+M(:,:,i) = [p1 p2 p3 p4 p5 p6 p7 p8 p9];
+end
+J = strcat('runTime = ',num2str(S.runTime),'; sigma = ',num2str(S.sigma),...
+     '; tau = ',num2str(S.tau),'; mu = ', num2str(S.mu),'; gamma = ',num2str(S.gamma),...
+     ': timeToDeleteSelf = ', num2str(S.timeToDeleteSelf),': timeToDeleteOther = ', num2str(S.timeToDeleteOther),'; k1 = ',num2str(S.k1),'; k2 = ',...
+      num2str(S.k2),'; k3 = ', num2str(S.k3),'; origin = ',num2str(S.origin),...
+      '; space-time average = ', num2str(S.spacetimeAverage),'; first step',...
+      num2str(S.firstStepTime),'; first step speed = ',...
+      num2str(S.firstStepSpeed), 'precision = ', num2str(S.precision));
 
+csvwrite('output.csv',M,1,0);

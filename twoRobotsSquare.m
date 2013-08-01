@@ -7,12 +7,11 @@ clear all
 init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
 
 shape = 'square';
-radius = .5;
+radius = 1;
 % initialize the field object
 S = field(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
-S.twoRobotsSquare();
 
-%S.runspeed = 'fast';
+S.runspeed = 'fast';
 % selects speed of the run, 'slow' computes each robot individually, but is
 % susceptible to noise, 'fast' alternates leader robots to speed up the
 % program, at the possible expense of accuracy, 'average_fast' runs
@@ -20,14 +19,22 @@ S.twoRobotsSquare();
 % 'average_slow' runs at the slow speed, but sends robots to the average of
 % their goal points to protect against noise and jitteriness
 S.runTime = 30;
-
+S.sigma = .25;
+S.tau = 2.5;
+S.mu = .1;
+S.gamma = .2;
+S.timeToDelete = 40;
+S.k1 = 3;
+S.k2 = 1;
+S.k3 = 1;
+S.origin = [0 -.50 0];
 if matlabpool('size') == 0 % checking to see if my pool is already open
     matlabpool open % can do more on computer with more cores
 end
 
 % call control law for robot motion
 control_law = @(t,x) S.control_law(t,x);
-noise = [0.001 0.001 0 0.001];
+noise = [0.002 0.002 0 0.001];
 % calls new Miabot object that actuates robot motion
 m = Miabots(init, control_law, 'velocity', S.runTime,...
     'sim', true, 'Sim_noise', noise);
@@ -111,7 +118,7 @@ for i=1:length(t)
     meas = zeros(0,4);
     % truncate state history
     for j=0:length(K(:,1))-1
-        meas(mod(j,40)+1,:) = K(j+1,:);
+        meas(mod(j,80)+1,:) = K(j+1,:);
     end
     
     entropyList = [entropyList; S.determineEntropy(meas, t(i),false)];
@@ -123,3 +130,29 @@ plot([0 t], n);
 xlabel('time');
 ylabel('entropic information');
 %}
+%%
+% records a string of all inputted variables, and generates a csv file
+% containing the data from the run
+p1 = transpose(m.get_history(1,'state_times'));
+M = zeros(length(p1), 9, S.n_robots);
+for i=1:S.n_robots
+    
+    p2 = transpose(m.get_history(i,'x'));
+    p3 = transpose(m.get_history(i,'y'));
+    p4 = transpose(m.get_history(i,'z'));
+    p5 = transpose(m.get_history(i,'vx'));
+    p6 = transpose(m.get_history(i,'vz'));
+    p7 = transpose(m.get_history(i,'theta'));
+    p8 = transpose(m.get_history(i,'theta_dot'));
+    p9 = n(2:length(n));
+M(:,:,i) = [p1 p2 p3 p4 p5 p6 p7 p8 p9];
+end
+J = strcat('runTime = ',num2str(S.runTime),'; sigma = ',num2str(S.sigma),...
+     '; tau = ',num2str(S.tau),'; mu = ', num2str(S.mu),'; gamma = ',num2str(S.gamma),...
+     ': timeToDelete = ', num2str(S.timeToDelete),'; k1 = ',num2str(S.k1),'; k2 = ',...
+      num2str(S.k2),'; k3 = ', num2str(S.k3),'; origin = ',num2str(S.origin),...
+      '; space-time average = ', num2str(S.spacetimeAverage),'; first step',...
+      num2str(S.firstStepTime),'; first step speed = ',...
+      num2str(S.firstStepSpeed), 'precision = ', num2str(S.precision));
+
+csvwrite('output.csv',M,1,0);
