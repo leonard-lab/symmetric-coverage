@@ -7,7 +7,7 @@ clear all
 init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
 
 shape = 'square';
-radius = 1;
+radius = .5;
 % initialize the field object
 S = field(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
 
@@ -18,13 +18,13 @@ S.runspeed = 'fast';
 % similarly to fast, but uses the average of each rotated position,
 % 'average_slow' runs at the slow speed, but sends robots to the average of
 % their goal points to protect against noise and jitteriness
-S.runTime = 30;
-S.sigma = .25;
-S.tau = 2.5;
+S.runTime = 50;
+S.sigma = .1;
+S.tau = .2;
 S.mu = .1;
-S.gamma = .2;
-S.timeToDelete = 40;
-S.k1 = 3;
+S.gamma = .12;
+S.timeToDelete = 4;
+S.k1 = 1;
 S.k2 = 1;
 S.k3 = 1;
 S.origin = [0 -.50 0];
@@ -37,7 +37,7 @@ control_law = @(t,x) S.control_law(t,x);
 noise = [0.002 0.002 0 0.001];
 % calls new Miabot object that actuates robot motion
 m = Miabots(init, control_law, 'velocity', S.runTime,...
-    'sim', true, 'Sim_noise', noise);
+    'sim', false, 'Sim_noise', noise);
 m.start
 
 %%
@@ -62,7 +62,7 @@ line([S.radius S.radius]+[S.origin(1) S.origin(1)], [-S.radius S.radius]+[S.orig
 line([S.radius -S.radius]+[S.origin(1) S.origin(1)], [S.radius S.radius]+[S.origin(2) S.origin(2)]);
 
 
-%{
+
 % plots x vs t, y vs t, z vs t, and theta vs t
 figure
 for i=1:S.n_robots
@@ -118,7 +118,7 @@ for i=1:length(t)
     meas = zeros(0,4);
     % truncate state history
     for j=0:length(K(:,1))-1
-        meas(mod(j,80)+1,:) = K(j+1,:);
+        meas(mod(j,20)+1,:) = K(j+1,:);
     end
     
     entropyList = [entropyList; S.determineEntropy(meas, t(i),false)];
@@ -129,7 +129,7 @@ figure
 plot([0 t], n);
 xlabel('time');
 ylabel('entropic information');
-%}
+
 %%
 % records a string of all inputted variables, and generates a csv file
 % containing the data from the run
@@ -147,12 +147,6 @@ for i=1:S.n_robots
     p9 = n(2:length(n));
 M(:,:,i) = [p1 p2 p3 p4 p5 p6 p7 p8 p9];
 end
-J = strcat('runTime = ',num2str(S.runTime),'; sigma = ',num2str(S.sigma),...
-     '; tau = ',num2str(S.tau),'; mu = ', num2str(S.mu),'; gamma = ',num2str(S.gamma),...
-     ': timeToDelete = ', num2str(S.timeToDelete),'; k1 = ',num2str(S.k1),'; k2 = ',...
-      num2str(S.k2),'; k3 = ', num2str(S.k3),'; origin = ',num2str(S.origin),...
-      '; space-time average = ', num2str(S.spacetimeAverage),'; first step',...
-      num2str(S.firstStepTime),'; first step speed = ',...
-      num2str(S.firstStepSpeed), 'precision = ', num2str(S.precision));
-
+J = S.settings(); 
 csvwrite('output.csv',M,1,0);
+%}

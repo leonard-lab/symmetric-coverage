@@ -9,18 +9,19 @@ init = [0 -.25 0 -.5; 0 -.75 0 pi-.5];
 shape = 'circle';
 radius = .5;
 % initialize the field object
-S = streamedField(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
+S = field(length(init(:,1)), shape, radius); % CONSIDER ADDING SHAPE, POLYGON, RUNSPEED
 S.sigma = .1;
 S.tau = 1;
 S.mu = .15;
-S.gamma = .1;
+S.gamma = .12;
 S.timeToDelete = 4;
 S.k1 = 1;
 S.k2 = 1;
 S.k3 = 1;
 S.origin = [0 -.50 0];
+S.precision = 6;
 
-%S.runspeed = 'fast';
+S.runspeed = 'fast';
 % selects speed of the run, 'slow' computes each robot individually, but is
 % susceptible to noise, 'fast' alternates leader robots to speed up the
 % program, at the possible expense of accuracy, 'average_fast' runs
@@ -39,7 +40,7 @@ control_law = @(t,x) S.control_law(t,x);
 noise = [0.00 0.00 0 0.000];
 % calls new Miabot object that actuates robot motion
 m = Miabots(init, control_law, 'velocity', S.runTime,...
-    'sim', true, 'Sim_noise', noise);
+    'sim', false, 'Sim_noise', noise);
 m.start
 
 %%
@@ -64,7 +65,6 @@ y=S.radius*sin(angle);
 plot(x+S.origin(1),y+S.origin(2));
 
 
-%{
 % plots x vs t, y vs t, z vs t, and theta vs t
 figure
 for i=1:S.n_robots
@@ -90,18 +90,12 @@ end
 xlabel('time');
 ylabel('Z-Position');
 
-w = m.get_history(1,'commands');
-d = m.get_history(1,'state_times');
-figure
-plot(d(2:length(d)), w(:,2));
-xlabel('time');
-ylabel('angular');
 %}
 
 %%
 % generate a graph of the information entropy of the area being surveyed as
 % a function of time
-%{
+
 t = m.get_history(1,'state_times');
 
 % take the state history
@@ -120,10 +114,10 @@ for i=1:length(t)
     meas = zeros(0,4);
     % truncate state history
     for j=0:length(K(:,1))-1
-        meas(mod(j,60)+1,:) = K(j+1,:);
+        meas(mod(j,30)+1,:) = K(j+1,:);
     end
 
-entropyList = [entropyList; S.determineEntropy(meas, t(i),,false)];
+entropyList = [entropyList; S.determineEntropy(meas, t(i),false)];
 
 end
 n = entropyList;
@@ -149,12 +143,6 @@ for i=1:S.n_robots
     p9 = n(2:length(n));
     M(:,:,i) = [p1 p2 p3 p4 p5 p6 p7 p8 p9];
 end
-J = strcat('runTime = ',num2str(S.runTime),'; sigma = ',num2str(S.sigma),...
-    '; tau = ',num2str(S.tau),'; mu = ', num2str(S.mu),'; gamma = ',num2str(S.gamma),...
-    ': timeToDelete = ', num2str(S.timeToDelete),'; k1 = ',num2str(S.k1),'; k2 = ',...
-    num2str(S.k2),'; k3 = ', num2str(S.k3),'; origin = ',num2str(S.origin),...
-    '; space-time average = ', num2str(S.spacetimeAverage),'; first step',...
-    num2str(S.firstStepTime),'; first step speed = ',...
-    num2str(S.firstStepSpeed), 'precision = ', num2str(S.precision));
+J = S.settings();
 
 csvwrite('output.csv',M,1,0);

@@ -16,7 +16,7 @@ S.sigma = .2;        % time constant for spatial separation of measurements
 S.tau = .3;          % time constant for temporal separation of measurements
 S.mu = .1;          % uncertainty in measurements, a characteristic of the sensors
 S.gamma = .04;      % radius over which a gradient is determined for motion
-S.timeToDeleteSelf = 4; % number of time steps after which a robot deletes its own old positions
+S.timeToDeleteSelf = 3; % number of time steps after which a robot deletes its own old positions
 S.timeToDeleteOther = 1; % number of time steps after which a robot deletes the other's old positions
 S.k1 = 1;          % coefficient for forward velocity in control law
 S.k2 = 1;          % coefficient for angular velocity in control law
@@ -103,7 +103,7 @@ ylabel('angular');
 %%
 % generate a graph of the information entropy of the area being surveyed as
 % a function of time
-%{
+
 t = m.get_history(1,'state_times');
 figure
 % take the state history
@@ -151,12 +151,5 @@ for i=1:S.n_robots
     p9 = n(2:length(n));
 M(:,:,i) = [p1 p2 p3 p4 p5 p6 p7 p8 p9];
 end
-J = strcat('runTime = ',num2str(S.runTime),'; sigma = ',num2str(S.sigma),...
-     '; tau = ',num2str(S.tau),'; mu = ', num2str(S.mu),'; gamma = ',num2str(S.gamma),...
-     ': timeToDelete = ', num2str(S.timeToDelete),'; k1 = ',num2str(S.k1),'; k2 = ',...
-      num2str(S.k2),'; k3 = ', num2str(S.k3),'; origin = ',num2str(S.origin),...
-      '; space-time average = ', num2str(S.spacetimeAverage),'; first step',...
-      num2str(S.firstStepTime),'; first step speed = ',...
-      num2str(S.firstStepSpeed), 'precision = ', num2str(S.precision));
-
+J = S.settings();
 csvwrite('output.csv',M,1,0);

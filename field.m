@@ -179,7 +179,7 @@ classdef field < handle
         % average_slow averages goals, and precise_slow does the proper
         % control law, but runs faster than slow with more possible points
         
-        precision = 14;        % number of spots considered for goal points
+        precision = 6;        % number of spots considered for goal points
         D;                    % matrix of covariances between measurements
         polygon;              % vertices for a custom shape
         origin = [0 -0.5 0];  % center of the survey area, which is treated as the origin
@@ -233,6 +233,17 @@ classdef field < handle
             end
         end
         
+        function [ settings ] = settings(obj)
+            settings = strcat('runTime = ',num2str(obj.runTime),'; sigma = ',num2str(obj.sigma),...
+                '; tau = ',num2str(obj.tau),'; mu = ', num2str(obj.mu),'; gamma = ',num2str(obj.gamma),...
+                '; timeToDelete = ', num2str(obj.timeToDelete),'; k1 = ',num2str(obj.k1),'; k2 = ',...
+                num2str(obj.k2),'; k3 = ', num2str(obj.k3),'; origin = ',num2str(obj.origin),...
+                '; space-time average = ', num2str(obj.spacetimeAverage),'; first step = ',...
+                num2str(obj.firstStepTime),'; first step speed = ',...
+                num2str(obj.firstStepSpeed), '; precision = ', num2str(obj.precision),...
+                '; runspeed = ', num2str(obj.runspeed), '; shape = ',num2str(obj.shape), '; radius = ', num2str(obj.radius));
+            
+        end
     end
     
     methods
